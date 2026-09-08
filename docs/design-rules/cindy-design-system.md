@@ -3,6 +3,9 @@
 > 本文件是 `docs/design-rules/` 全部设计文档的索引与版本台账（2026-07-24 起启用，此前为跳转 stub）。
 > 设计类 `.md` 一律放本目录，并在下表登记；规范正文不要写进本文件。
 
+
+DS-6 表单贡献入口：先读 [DESIGN §4](./DESIGN.md#inputs--forms)，在真实字段中复用 [FormField](../../apps/desktop/src/renderer/components/ui/form-field.tsx) 与 [SettingsTextInput](../../apps/desktop/src/renderer/components/settings/SettingsTextInput.tsx)（普通域用 Input）；保存反馈用 [Button loading](../../apps/desktop/src/renderer/components/ui/button.tsx)。业务校验、请求与焦点由表单持有；首消费者为 [CustomProviderDialog](../../apps/desktop/src/renderer/components/settings/CustomProviderDialog.tsx)，第二消费者为 [McpServerDialog](../../apps/desktop/src/renderer/components/settings/McpServerDialog.tsx)。[证据与未验收项](../design-evidence/2026-09-08/ds6-forms.md) 区分组件/整页/人工/G2，settings 仍是 pilot。
+
 ## 文档索引
 
 | 文档 | 内容 | 角色 |

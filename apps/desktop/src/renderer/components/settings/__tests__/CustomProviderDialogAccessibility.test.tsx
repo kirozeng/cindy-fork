@@ -252,6 +252,9 @@ describe('CustomProviderDialog accessibility', () => {
       name: 'settings.providers.custom.fields.modelContextWindowTitle',
     });
     await waitFor(() => expect(document.activeElement).toBe(contextWindow));
+    expect(contextWindow).toBe(
+      screen.getByPlaceholderText('settings.providers.custom.fields.modelContextWindowPlaceholder'),
+    );
   });
 
   it('cancels a pending manual create without discarding the Provider draft', async () => {
@@ -1375,5 +1378,55 @@ describe('CustomProviderDialog accessibility', () => {
     expect(capability.checked).toBe(false);
     await user.click(capability);
     expect(capability.checked).toBe(true);
+  });
+});
+
+describe('DS-6 field errors and save ownership', () => {
+  it('reports name validation on the field and focuses it', async () => {
+    render(<CustomProviderDialog onSaved={vi.fn()} onClose={vi.fn()} />);
+    await waitForInitialDialogFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'settings.providers.custom.save' }));
+    const name = screen.getByLabelText('settings.providers.custom.fields.name');
+    expect(document.activeElement).toBe(name);
+    expect(name.getAttribute('aria-invalid')).toBe('true');
+    expect(document.getElementById(name.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'settings.providers.custom.errors.nameRequired',
+    );
+    expect(customProviderMocks.createCustomProvider).not.toHaveBeenCalled();
+  });
+
+  it('locks only an actual save request and restores Cancel after failure', async () => {
+    let reject!: (error: Error) => void;
+    customProviderMocks.readCustomProviderKey.mockResolvedValue(null);
+    customProviderMocks.updateCustomProvider.mockReturnValueOnce(
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+    );
+    const onClose = vi.fn(),
+      onSaved = vi.fn();
+    render(
+      <CustomProviderDialog
+        initial={modelRoutedCodexProvider()}
+        onSaved={onSaved}
+        onClose={onClose}
+      />,
+    );
+    await waitForInitialDialogFocus();
+    await act(async () => {});
+    const save = screen.getByRole('button', { name: 'settings.providers.custom.save' });
+    const cancel = screen.getByRole('button', { name: 'settings.providers.custom.cancel' });
+    fireEvent.click(save);
+    fireEvent.click(save);
+    fireEvent.click(cancel);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(customProviderMocks.updateCustomProvider).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(save.getAttribute('aria-busy')).toBe('true');
+    await act(async () => reject(new Error('Try again')));
+    expect((cancel as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(save);
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(customProviderMocks.updateCustomProvider).toHaveBeenCalledTimes(2);
   });
 });
