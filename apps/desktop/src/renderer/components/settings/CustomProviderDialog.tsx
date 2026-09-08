@@ -220,6 +220,7 @@ interface RuntimeFields extends RuntimeFillDraft {
   modelsUrl: string;
   /** 隐藏字段：从 Pi 官方目录生成该 runtime；编辑保存必须无损保留。 */
   piCatalogProviderId?: string;
+  catalogPresetId?: string;
   /** Codex Responses runtime 级原生图片生成能力。 */
   supportsImageGeneration: boolean;
 }
@@ -294,6 +295,7 @@ function initRuntimes(initial?: CustomProviderConfig): Record<DialogAgentKind, R
             : [{ name: '', value: '' }],
         modelsUrl: rc.modelsUrl ?? '',
         piCatalogProviderId: rc.piCatalogProviderId,
+        catalogPresetId: rc.catalogPresetId,
         supportsImageGeneration: a === 'codex' && rc.supportsImageGeneration === true,
         headersState: rc.headersState,
       });
@@ -1027,13 +1029,22 @@ export function CustomProviderDialog({
             requestPath: a === 'pi' ? '' : (rc.requestPath ?? ''),
             apiKey: prev[a].apiKey, // 已填的 key 保留
             wireProtocol: rc.wireProtocol ?? defaultWireFor(a),
-            models: rc.models.length ? rc.models.map((m) => ({ ...m })) : [{ id: '', name: '' }],
+            models: rc.models.length
+              ? rc.models.map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                  discoveredMetadata: {},
+                  ...(m.piApi ? { piApi: m.piApi } : {}),
+                  ...(m.route ? { route: m.route } : {}),
+                }))
+              : [{ id: '', name: '' }],
             headers:
               rc.headers && Object.keys(rc.headers).length > 0
                 ? Object.entries(rc.headers).map(([n, v]) => ({ name: n, value: v }))
                 : [{ name: '', value: '' }],
             modelsUrl: rc.modelsUrl ?? '',
             piCatalogProviderId: rc.piCatalogProviderId,
+            catalogPresetId: p.id,
             supportsImageGeneration: a === 'codex' && rc.supportsImageGeneration === true,
           };
         }
@@ -1530,15 +1541,19 @@ export function CustomProviderDialog({
           .map((m) => ({
             id: m.id.trim(),
             name: m.name.trim(),
+            discoveredMetadata: m.discoveredMetadata,
+            nameExplicit: m.nameExplicit,
             ...(agent === 'pi' && m.piApi ? { piApi: m.piApi } : {}),
             ...(m.route ? { route: { ...m.route } } : {}),
             ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
             ...(m.defaultEnabled === false ? { defaultEnabled: false } : {}),
-            ...(m.supportsImageInput === true ? { supportsImageInput: true } : {}),
-            ...(m.reasoning === true && m.reasoningEfforts?.length
+            ...(m.supportsImageInput !== undefined
+              ? { supportsImageInput: m.supportsImageInput }
+              : {}),
+            ...(m.reasoning !== undefined
               ? {
-                  reasoning: true,
-                  reasoningEfforts: [...m.reasoningEfforts],
+                  reasoning: m.reasoning,
+                  reasoningEfforts: [...(m.reasoningEfforts ?? [])],
                   ...(m.reasoningDefaultEffort
                     ? { reasoningDefaultEffort: m.reasoningDefaultEffort }
                     : {}),
@@ -1558,19 +1573,23 @@ export function CustomProviderDialog({
             // contextWindow:表单已有的行以用户当前值为准——包括「显式清空」
             // (cur 存在但无值时不得被发现值回填,review P1);只有表单没见过的
             // 新模型才带上端点声明的发现值(否则保存后回落 200K,review P1)。
-            const contextWindow = cur ? cur.contextWindow : m.contextWindow;
+            const contextWindow = cur?.contextWindow;
             return {
               id: m.id,
               name: cur?.name || m.name,
+              discoveredMetadata: m.discoveredMetadata ?? { contextWindow: m.contextWindow },
+              nameExplicit: cur ? (cur.nameExplicit ?? !cur.discoveredMetadata) : undefined,
               ...(agent === 'pi' && cur?.piApi ? { piApi: cur.piApi } : {}),
               ...(cur?.route ? { route: { ...cur.route } } : {}),
               ...(contextWindow !== undefined ? { contextWindow } : {}),
               ...(cur?.defaultEnabled === false ? { defaultEnabled: false } : {}),
-              ...(cur?.supportsImageInput === true ? { supportsImageInput: true } : {}),
-              ...(cur?.reasoning === true && cur.reasoningEfforts?.length
+              ...(cur?.supportsImageInput !== undefined
+                ? { supportsImageInput: cur.supportsImageInput }
+                : {}),
+              ...(cur?.reasoning !== undefined
                 ? {
-                    reasoning: true,
-                    reasoningEfforts: [...cur.reasoningEfforts],
+                    reasoning: cur.reasoning,
+                    reasoningEfforts: [...(cur.reasoningEfforts ?? [])],
                     ...(cur.reasoningDefaultEffort
                       ? { reasoningDefaultEffort: cur.reasoningDefaultEffort }
                       : {}),
@@ -1641,15 +1660,17 @@ export function CustomProviderDialog({
       return {
         id: m.id,
         name: latest?.name.trim() ? latest.name.trim() : m.name,
+        discoveredMetadata: m.discoveredMetadata ?? latest?.discoveredMetadata,
+        nameExplicit: latest?.nameExplicit ?? m.nameExplicit,
         ...(picker.agent === 'pi' && piApi ? { piApi } : {}),
         ...((latest?.route ?? m.route) ? { route: { ...(latest?.route ?? m.route)! } } : {}),
         ...(contextWindow !== undefined ? { contextWindow } : {}),
         ...(defaultEnabled === false ? { defaultEnabled: false } : {}),
-        ...(supportsImageInput === true ? { supportsImageInput: true } : {}),
-        ...(reasoning === true && reasoningEfforts?.length
+        ...(supportsImageInput !== undefined ? { supportsImageInput } : {}),
+        ...(reasoning !== undefined
           ? {
-              reasoning: true,
-              reasoningEfforts: [...reasoningEfforts],
+              reasoning,
+              reasoningEfforts: [...(reasoningEfforts ?? [])],
               ...(reasoningDefaultEffort ? { reasoningDefaultEffort } : {}),
             }
           : {}),
@@ -1661,15 +1682,19 @@ export function CustomProviderDialog({
         merged.push({
           id,
           name: m.name.trim() || id,
+          discoveredMetadata: m.discoveredMetadata,
+          nameExplicit: m.nameExplicit,
           ...(picker.agent === 'pi' && m.piApi ? { piApi: m.piApi } : {}),
           ...(m.route ? { route: { ...m.route } } : {}),
           ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
           ...(m.defaultEnabled === false ? { defaultEnabled: false } : {}),
-          ...(m.supportsImageInput === true ? { supportsImageInput: true } : {}),
-          ...(m.reasoning === true && m.reasoningEfforts?.length
+          ...(m.supportsImageInput !== undefined
+            ? { supportsImageInput: m.supportsImageInput }
+            : {}),
+          ...(m.reasoning !== undefined
             ? {
-                reasoning: true,
-                reasoningEfforts: [...m.reasoningEfforts],
+                reasoning: m.reasoning,
+                reasoningEfforts: [...(m.reasoningEfforts ?? [])],
                 ...(m.reasoningDefaultEffort
                   ? { reasoningDefaultEffort: m.reasoningDefaultEffort }
                   : {}),
@@ -1801,15 +1826,19 @@ export function CustomProviderDialog({
         .map((m) => ({
           id: m.id.trim(),
           name: m.name.trim(),
+          discoveredMetadata: m.discoveredMetadata,
+          nameExplicit: m.nameExplicit,
           ...(a === 'pi' && m.piApi ? { piApi: m.piApi } : {}),
           ...(m.route ? { route: { ...m.route } } : {}),
           ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
           ...(m.defaultEnabled === false ? { defaultEnabled: false } : {}),
-          ...(m.supportsImageInput === true ? { supportsImageInput: true } : {}),
-          ...(m.reasoning === true && m.reasoningEfforts?.length
+          ...(m.supportsImageInput !== undefined
+            ? { supportsImageInput: m.supportsImageInput }
+            : {}),
+          ...(m.reasoning !== undefined
             ? {
-                reasoning: true,
-                reasoningEfforts: [...m.reasoningEfforts],
+                reasoning: m.reasoning,
+                reasoningEfforts: [...(m.reasoningEfforts ?? [])],
                 ...(m.reasoningDefaultEffort
                   ? { reasoningDefaultEffort: m.reasoningDefaultEffort }
                   : {}),
@@ -1851,6 +1880,7 @@ export function CustomProviderDialog({
       );
       runtimes[a] = {
         baseUrl: rf.baseUrl.trim(),
+        ...(rf.catalogPresetId ? { catalogPresetId: rf.catalogPresetId } : {}),
         ...(requestPath ? { requestPath } : {}),
         ...(savedWireProtocol ? { wireProtocol: savedWireProtocol } : {}),
         ...(a === 'codex' && rf.supportsImageGeneration && canRuntimeUseNativeImageGeneration(rf)
@@ -2644,10 +2674,14 @@ export function CustomProviderDialog({
                               {...control}
                               surface="ivory"
                               value={m.name}
+                              // nameExplicit: main #4108 的模型资料优先级语义——用户显式
+                              // 改名后不被动态发现覆盖;与 DS-6 的 FormField 结构合并保留。
                               onChange={(v) =>
                                 patch(activeTab, (x) => ({
                                   ...x,
-                                  models: x.models.map((y, j) => (j === i ? { ...y, name: v } : y)),
+                                  models: x.models.map((y, j) =>
+                                    j === i ? { ...y, name: v, nameExplicit: true } : y,
+                                  ),
                                 }))
                               }
                               placeholder={t(
@@ -2994,11 +3028,12 @@ export function CustomProviderDialog({
                               {...control}
                               surface="ivory"
                               value={h.name}
+                              // nameExplicit 同上:与 main #4108 的显式命名语义合并保留。
                               onChange={(v) =>
                                 patch(activeTab, (x) => ({
                                   ...x,
                                   headers: x.headers.map((y, j) =>
-                                    j === i ? { ...y, name: v } : y,
+                                    j === i ? { ...y, name: v, nameExplicit: true } : y,
                                   ),
                                 }))
                               }
