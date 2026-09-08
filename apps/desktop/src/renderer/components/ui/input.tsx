@@ -107,6 +107,12 @@ export interface InputProps extends Omit<
   trailing?: ReactNode;
   /** 错误态：边框 / focus 环切到 `--error-*` 族。 */
   error?: boolean;
+  /**
+   * secret 眼睛按钮 Tip 的内容样式。Tip 经 Portal 渲染到 body,默认 `z-[60]` 会被
+   * `z-[10000]` 的模态层盖住;输入位于手写模态内时传 `z-[10001]` 盖过宿主弹窗
+   * (与本仓其它模态内 Tip 的既有做法一致)。
+   */
+  secretTipContentClassName?: string;
   /** 附加到**外层容器**（内层 input 恒为 w-full），供 flex 行传 `flex-1 min-w-0`。 */
   className?: string;
   /** 内层控件的样式扩展；供既有域封装保留局部主题合同，错误态仍优先。 */
@@ -125,6 +131,7 @@ export function Input({
   secret = false,
   trailing,
   error = false,
+  secretTipContentClassName,
   className,
   inputClassName,
   disabled,
@@ -141,7 +148,10 @@ export function Input({
   const eyeStyle = EYE_STYLES[size];
 
   const eyeButton = secret ? (
-    <Tip text={revealed ? t('settings.apiKey.hideKey') : t('settings.apiKey.showKey')}>
+    <Tip
+      text={revealed ? t('settings.apiKey.hideKey') : t('settings.apiKey.showKey')}
+      contentClassName={secretTipContentClassName}
+    >
       <button
         type="button"
         disabled={disabled}

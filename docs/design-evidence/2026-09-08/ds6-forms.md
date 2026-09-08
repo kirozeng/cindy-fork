@@ -178,6 +178,12 @@ DS-4 12 张均已从 `ede0f7739` 恢复原字节到仓外附件目录；采集�
 
 原 macOS 人工验收属于上述实机候选；上游兼容后的检查在提交说明中另记，不把旧截图/实机记录当成新合并树已经逐项重验。G2、原生缩放/IME/Windows 及公开附件待项不因本次提交自动消除。
 
+## Review 轮修复:模态内 Tooltip 层级(2026-09-08)
+
+PR review(P2)指出:两张表单的密码显隐按钮与行删除按钮的 `Tip` 经 Portal 渲染,内容层默认 `z-[60]` 低于手写模态的 `z-[10000]`,悬停/聚焦时提示被宿主弹窗盖住。修复沿用仓内既有惯例(模态内 Popover/Dropdown `z-[10001]`):行删除 `Tip` 直接传 `contentClassName="z-[10001]"`;共享 `Input` 为 secret 眼睛按钮新增 `secretTipContentClassName` 透传,两张表单的密钥/Token 输入传 `z-[10001]`。规则回写 `DESIGN.md` Dialog & Modal 段。
+
+回归验证:`McpServerDialog.test.tsx` 与 `CustomProviderDialogAccessibility.test.tsx` 各加一例,悬停触发后断言可见 tooltip 层经 tailwind-merge 后含 `z-[10001]`(Radix Tooltip 1.2 的 `role="tooltip"` 挂在 Content 内 sr-only 副本上,可见层取其父节点)。两文件 36 项全部通过;本轮 jsdom 断言不替代实机目检,Light/Dark 实机双模式仍属上方待项范围,未新增验证。
+
 ## 代表原图的附件交接
 
 四张代表原图 `ds6-provider-edit-light.png`、`ds6-provider-error-dark.png`、`ds6-mcp-new-light.png`、`ds6-mcp-edit-dark.png` 均来自上述 macOS 独立沙箱的真实设置路由，使用虚构数据和 renderer 服务替身；不是静态效果稿，不替代用户在测试版的手动审核。采集代码已保全为 `6d4af6733a`，本轮 main 合并未改变这两张表单的源码。

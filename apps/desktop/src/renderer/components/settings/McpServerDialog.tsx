@@ -313,6 +313,7 @@ export function McpServerDialog({ initial, existingIds, onSaved, onClose }: McpS
                     onChange={setToken}
                     placeholder={tokenPlaceholder}
                     secret
+                    secretTipContentClassName="z-[10001]"
                   />
                 )}
               </FormField>
@@ -364,7 +365,10 @@ export function McpServerDialog({ initial, existingIds, onSaved, onClose }: McpS
                         />
                       )}
                     </FormField>
-                    <Tip text={t('settings.mcp.fields.removeRow')}>
+                    <Tip
+                      text={t('settings.mcp.fields.removeRow')}
+                      contentClassName="z-[10001]"
+                    >
                       <Button
                         variant="secondary"
                         className="w-9 px-0"

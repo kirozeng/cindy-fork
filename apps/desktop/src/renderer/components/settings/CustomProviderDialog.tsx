@@ -2567,6 +2567,7 @@ export function CustomProviderDialog({
                       placeholder={keyPlaceholder}
                       mono
                       secret
+                      secretTipContentClassName="z-[10001]"
                     />
                   )}
                 </FormField>
@@ -2748,7 +2749,10 @@ export function CustomProviderDialog({
                           )}
                         </FormField>
                       </div>
-                      <Tip text={t('settings.providers.custom.fields.removeRow')}>
+                      <Tip
+                        text={t('settings.providers.custom.fields.removeRow')}
+                        contentClassName="z-[10001]"
+                      >
                         <Button
                           variant="secondary"
                           size="lg"
@@ -3032,7 +3036,10 @@ export function CustomProviderDialog({
                           )}
                         </FormField>
                       </div>
-                      <Tip text={t('settings.providers.custom.fields.removeRow')}>
+                      <Tip
+                        text={t('settings.providers.custom.fields.removeRow')}
+                        contentClassName="z-[10001]"
+                      >
                         <Button
                           variant="secondary"
                           size="lg"

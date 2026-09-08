@@ -1429,4 +1429,39 @@ describe('DS-6 field errors and save ownership', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(customProviderMocks.updateCustomProvider).toHaveBeenCalledTimes(2);
   });
+
+  it('raises secret eye and remove-row tooltips above the z-10000 modal overlay', async () => {
+    customProviderMocks.readCustomProviderKey.mockResolvedValue(null);
+    const user = userEvent.setup();
+    render(
+      <CustomProviderDialog
+        initial={modelRoutedCodexProvider()}
+        onSaved={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    await waitForInitialDialogFocus();
+
+    // Tip 经 Portal 渲染到 body,默认 z-[60] 会被 z-[10000] 模态层盖住;
+    // 弹窗内必须把提示抬到 z-[10001](review P2)。Radix Tooltip 1.2 的
+    // role="tooltip" 挂在 Content 内的 sr-only 副本上,带 z class 的可见层
+    // 是它的父节点(Popper.Content)。
+    const eye = screen.getByRole('button', { name: 'settings.apiKey.showKey' });
+    await user.hover(eye);
+    const eyeTip = await screen.findByRole('tooltip');
+    expect(eyeTip.textContent).toBe('settings.apiKey.showKey');
+    expect(eyeTip.parentElement!.className).toContain('z-[10001]');
+    // 模态 open 时 Radix 会把 body 置 pointer-events:none,userEvent.unhover 的
+    // 交互前检查会拒绝;直接派发 pointerleave 关闭提示(Radix 监听 pointer 事件)。
+    fireEvent.pointerLeave(eye);
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull());
+
+    const remove = screen.getAllByRole('button', {
+      name: 'settings.providers.custom.fields.removeRow',
+    })[0]!;
+    await user.hover(remove);
+    const removeTip = await screen.findByRole('tooltip');
+    expect(removeTip.textContent).toBe('settings.providers.custom.fields.removeRow');
+    expect(removeTip.parentElement!.className).toContain('z-[10001]');
+  });
 });
