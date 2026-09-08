@@ -29,7 +29,7 @@ DS-6 表单贡献入口：先读 [DESIGN §4](./DESIGN.md#inputs--forms)，在�
 
 1. 先读 [DESIGN.md](./DESIGN.md) 的适用视觉/组件规则，再读 [治理合同](./design-governance.md) §4 兼容、§6 证据、§7/8 风险与门禁；当前顺序及目标验收见 §12。
 2. 在 [inventory](./design-inventory.md) 找实际入口、保护合同与人工下一动作；没认领的 owner 仍是 unassigned，按实际工作认领，不能把共享组件已被引用当成整页迁移完成。
-3. 复用现有 [Button](../../apps/desktop/src/renderer/components/ui/button.tsx)、[Input / Textarea](../../apps/desktop/src/renderer/components/ui/input.tsx)；设置旧局部覆盖使用 [SettingsTextInput](../../apps/desktop/src/renderer/components/settings/SettingsTextInput.tsx)。FormField 与 Button loading API **尚未提供**，DS-6 随真实表单需求建立并补使用说明。
+3. 复用现有 [Button](../../apps/desktop/src/renderer/components/ui/button.tsx)、[Input / Textarea](../../apps/desktop/src/renderer/components/ui/input.tsx)；设置旧局部覆盖使用 [SettingsTextInput](../../apps/desktop/src/renderer/components/settings/SettingsTextInput.tsx)。表单字段的 label / hint / 错误组合用 [FormField](../../apps/desktop/src/renderer/components/ui/form-field.tsx)，保存期间的防重复反馈用 Button 的 loading 状态（均已随 DS-6 提供，用法见上方「DS-6 表单贡献入口」）。
 4. 需要改设计值时读 [Token README](../../packages/design-tokens/README.md)：当前影子层不被产品消费；双端语义样本与未来生成合同都在该处。Desktop / Mobile 分别在 DS-8 / DS-10 接管；新观感先查治理 §10 待决项，不因数值相同而删除局部主题覆盖。
 
 以上仓内入口即可开始贡献；无需访问个人桌面记录。此阅读路径检查不代替 G2 的独立贡献者试用。

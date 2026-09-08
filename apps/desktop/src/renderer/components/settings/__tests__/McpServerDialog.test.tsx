@@ -60,7 +60,9 @@ it('preserves create ID, transport, trimmed headers and raw token arguments', as
   change('name', ' Example ');
   change('url', ' https://example.test/mcp ');
   change('token', ' token ');
-  fireEvent.click(screen.getByRole('button', { name: 'sse' }));
+  // transport 走共享分段控件(review P2):role=radio 的 radiogroup,不再是独立 button。
+  expect(screen.getByRole('radiogroup', { name: 'settings.mcp.fields.transport' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('radio', { name: 'sse' }));
   fireEvent.change(screen.getByPlaceholderText('settings.mcp.fields.headerNamePlaceholder'), {
     target: { value: ' X-Test ' },
   });

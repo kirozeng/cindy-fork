@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Tip } from '@/components/ui/tooltip';
 import { SettingsTextInput } from './SettingsTextInput';
+import { SettingsSegmentedControl } from './SettingsSegmentedControl';
 
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
@@ -258,17 +259,20 @@ export function McpServerDialog({ initial, existingIds, onSaved, onClose }: McpS
                 {t('settings.mcp.fields.transport')}
               </legend>
               <div className="flex flex-wrap gap-2">
-                {MCP_TRANSPORTS.map((tp) => (
-                  <Button
-                    key={tp}
-                    variant={transport === tp ? 'primary' : 'secondary'}
-                    aria-pressed={transport === tp}
-                    onClick={() => setTransport(tp)}
-                    className="uppercase"
-                  >
-                    {tp}
-                  </Button>
-                ))}
+                {/*
+                  transport 是紧凑互斥设置,走共享分段控件(DESIGN.md §4 Settings
+                  segmented controls):单一 Tab 停靠点、方向键 / Home / End 与 RTL
+                  键盘行为由控件自带,不再用独立 Button 自造第二套选中态(review P2)。
+                */}
+                <SettingsSegmentedControl
+                  aria-label={t('settings.mcp.fields.transport')}
+                  value={transport}
+                  onValueChange={setTransport}
+                  options={MCP_TRANSPORTS.map((tp) => ({
+                    value: tp,
+                    label: <span className="uppercase">{tp}</span>,
+                  }))}
+                />
               </div>
             </fieldset>
             <div className="flex flex-col gap-4 rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--surface)] p-4">
