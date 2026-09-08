@@ -182,7 +182,9 @@ DS-4 12 张均已从 `ede0f7739` 恢复原字节到仓外附件目录；采集�
 
 PR review(P2)指出:两张表单的密码显隐按钮与行删除按钮的 `Tip` 经 Portal 渲染,内容层默认 `z-[60]` 低于手写模态的 `z-[10000]`,悬停/聚焦时提示被宿主弹窗盖住。修复沿用仓内既有惯例(模态内 Popover/Dropdown `z-[10001]`):行删除 `Tip` 直接传 `contentClassName="z-[10001]"`;共享 `Input` 为 secret 眼睛按钮新增 `secretTipContentClassName` 透传,两张表单的密钥/Token 输入传 `z-[10001]`。规则回写 `DESIGN.md` Dialog & Modal 段。
 
-回归验证:`McpServerDialog.test.tsx` 与 `CustomProviderDialogAccessibility.test.tsx` 各加一例,悬停触发后断言可见 tooltip 层经 tailwind-merge 后含 `z-[10001]`(Radix Tooltip 1.2 的 `role="tooltip"` 挂在 Content 内 sr-only 副本上,可见层取其父节点)。两文件 36 项全部通过;本轮 jsdom 断言不替代实机目检,Light/Dark 实机双模式仍属上方待项范围,未新增验证。
+后续 review(P1)补扫出 `AddProviderWizard` 内置供应商与预设 API Key 两个 `SettingsTextInput secret` 调用点同处 `z-[10000]` 向导遮罩内,已同批传入 `secretTipContentClassName="z-[10001]"`。仓内 secret 输入调用点至此全景:两表单与向导(模态内,均已抬层)加 `ProvidersSection` 的 `ImageApiKeyRow`(设置页行内,无模态遮罩,保持默认)。
+
+回归验证:`McpServerDialog.test.tsx` 与 `CustomProviderDialogAccessibility.test.tsx` 各加一例,悬停触发后断言可见 tooltip 层经 tailwind-merge 后含 `z-[10001]`(Radix Tooltip 1.2 的 `role="tooltip"` 挂在 Content 内 sr-only 副本上,可见层取其父节点)。两文件 36 项全部通过;向导两处为同一机制的 prop 字面量传参,未另建组件级测试。本轮 jsdom 断言不替代实机目检,Light/Dark 实机双模式仍属上方待项范围,未新增验证。
 
 ## 代表原图的附件交接
 
