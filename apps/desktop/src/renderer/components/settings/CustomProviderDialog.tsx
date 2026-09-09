@@ -2214,7 +2214,15 @@ export function CustomProviderDialog({
         aria-modal="true"
         aria-labelledby="custom-provider-dialog-title"
         tabIndex={-1}
-        onChangeCapture={() => setFieldError(null)}
+        onChangeCapture={(event) => {
+          // 只在报错字段自身被编辑时清除:改其它字段(名称/密钥/别的 runtime 行)
+          // 不应清掉当前字段的错误提示与 aria-invalid——URL 未修正时提示必须
+          // 保留到再次保存重新校验(review P2)。
+          const target = event.target;
+          if (fieldError && target instanceof HTMLElement && target.id === fieldError.id) {
+            setFieldError(null);
+          }
+        }}
         className={cn(
           'flex max-h-[88vh] w-[min(600px,calc(100vw-32px))] flex-col rounded-xl outline-none',
           'border border-[var(--border-default)] bg-[var(--surface-elevated)]',

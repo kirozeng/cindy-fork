@@ -1464,4 +1464,34 @@ describe('DS-6 field errors and save ownership', () => {
     expect(removeTip.textContent).toBe('settings.providers.custom.fields.removeRow');
     expect(removeTip.parentElement!.className).toContain('z-[10001]');
   });
+
+  it('keeps the field error while other fields change and clears it when the errored field is edited', async () => {
+    render(<CustomProviderDialog onSaved={vi.fn()} onClose={vi.fn()} />);
+    await waitForInitialDialogFocus();
+    const name = screen.getByLabelText('settings.providers.custom.fields.name');
+    const baseUrl = screen.getByLabelText('settings.providers.custom.fields.baseUrl');
+    fireEvent.change(name, { target: { value: 'X' } });
+    fireEvent.change(baseUrl, { target: { value: 'not-a-url' } });
+    fireEvent.click(screen.getByRole('button', { name: 'settings.providers.custom.save' }));
+
+    // 非法 URL 报错落在 baseUrl,首错聚焦并带 aria-invalid。
+    expect(document.activeElement).toBe(baseUrl);
+    expect(baseUrl.getAttribute('aria-invalid')).toBe('true');
+    expect(
+      document.getElementById(baseUrl.getAttribute('aria-describedby')!)?.textContent,
+    ).toBe('settings.providers.custom.errors.baseUrlInvalid');
+
+    // 编辑其它字段(name)不得清掉 baseUrl 的错误——面板级 onChangeCapture 只在
+    // 报错字段自身被编辑时清除(review P2)。
+    fireEvent.change(name, { target: { value: 'XY' } });
+    expect(baseUrl.getAttribute('aria-invalid')).toBe('true');
+    expect(
+      document.getElementById(baseUrl.getAttribute('aria-describedby')!)?.textContent,
+    ).toBe('settings.providers.custom.errors.baseUrlInvalid');
+
+    // 编辑报错字段本身:错误清除,等下次保存重新校验。
+    fireEvent.change(baseUrl, { target: { value: 'https://example.test/v1' } });
+    expect(baseUrl.getAttribute('aria-invalid')).not.toBe('true');
+    expect(customProviderMocks.createCustomProvider).not.toHaveBeenCalled();
+  });
 });
