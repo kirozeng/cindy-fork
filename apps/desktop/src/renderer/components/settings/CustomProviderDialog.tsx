@@ -1058,6 +1058,10 @@ export function CustomProviderDialog({
       setWindowDrafts({});
       const first = configuredPresetAgents(p)[0];
       if (first) setActiveTab(first);
+      // 预设整体替换名称/鉴权/全部 runtime:任何既有字段错误的指向(字段值、
+      // 行结构、tab)都已失效。程序化赋值不触发输入的 change,须在此显式清除
+      // (review P1)。
+      setFieldError(null);
     },
     [i18n.language, setRtSynced],
   );
@@ -2215,11 +2219,25 @@ export function CustomProviderDialog({
         aria-labelledby="custom-provider-dialog-title"
         tabIndex={-1}
         onChangeCapture={(event) => {
-          // 只在报错字段自身被编辑时清除:改其它字段(名称/密钥/别的 runtime 行)
-          // 不应清掉当前字段的错误提示与 aria-invalid——URL 未修正时提示必须
-          // 保留到再次保存重新校验(review P2)。
+          // 错误清除粒度(review P2/P1 双向约束):
+          // - 报错字段自身被编辑时清除——改其它字段(名称/密钥/别的 runtime 行)
+          //   不得清掉当前字段的错误提示与 aria-invalid,保留到再次保存重新校验;
+          // - 例外是列表级错误(`${agent}:add-model`,模型列表为空,提示挂在
+          //   「添加模型」按钮旁、不依赖任何行存在):用户点该按钮新增行并填写
+          //   内容时,change 目标是新行输入而非按钮本身,这条填空路径正是对
+          //   列表错误的修正,须同步清除,否则提示要滞留到再次保存。
           const target = event.target;
-          if (fieldError && target instanceof HTMLElement && target.id === fieldError.id) {
+          if (!(target instanceof HTMLElement) || !fieldError) return;
+          if (target.id === fieldError.id) {
+            setFieldError(null);
+            return;
+          }
+          const key = fieldError.id.slice(formId.length + 1);
+          const agent = key.slice(0, key.indexOf(':'));
+          if (
+            key === `${agent}:add-model` &&
+            target.id.startsWith(`${formId}-${agent}:model:`)
+          ) {
             setFieldError(null);
           }
         }}

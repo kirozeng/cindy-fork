@@ -1494,4 +1494,73 @@ describe('DS-6 field errors and save ownership', () => {
     expect(baseUrl.getAttribute('aria-invalid')).not.toBe('true');
     expect(customProviderMocks.createCustomProvider).not.toHaveBeenCalled();
   });
+
+  it('clears the list-level model error when the new model row is filled after adding it back', async () => {
+    render(<CustomProviderDialog onSaved={vi.fn()} onClose={vi.fn()} />);
+    await waitForInitialDialogFocus();
+    // 名称 / baseUrl 合法,删掉仅有的空模型行 → 保存报列表级错误(渲染在「添加模型」旁,
+    // 不依赖任何行存在)。
+    fireEvent.change(screen.getByLabelText('settings.providers.custom.fields.name'), {
+      target: { value: 'X' },
+    });
+    fireEvent.change(screen.getByLabelText('settings.providers.custom.fields.baseUrl'), {
+      target: { value: 'https://example.test/v1' },
+    });
+    fireEvent.click(
+      screen.getAllByRole('button', {
+        name: 'settings.providers.custom.fields.removeRow',
+      })[0]!,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'settings.providers.custom.save' }));
+    expect(screen.getByText('settings.providers.custom.errors.modelRequired')).toBeTruthy();
+
+    // 重新添加模型并填写:新行输入的 change 就是对列表级错误的修正,提示须同步清除
+    // ——否则会滞留到再次保存(review P1)。
+    fireEvent.click(
+      screen.getByRole('button', { name: 'settings.providers.custom.fields.addModel' }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText('settings.providers.custom.fields.modelIdPlaceholder'),
+      { target: { value: 'm1' } },
+    );
+    expect(screen.queryByText('settings.providers.custom.errors.modelRequired')).toBeNull();
+    expect(customProviderMocks.createCustomProvider).not.toHaveBeenCalled();
+  });
+
+  it('clears any field error when a preset programmatically replaces the form values', async () => {
+    window.electronAPI.maker.listProviderPresets = vi.fn(async () => ({
+      presets: [
+        {
+          id: 'preset-a',
+          name: 'Preset A',
+          runtimes: {
+            'claude-code': {
+              baseUrl: 'https://preset.example.test/v1',
+              models: [{ id: 'pm-1', name: 'PM 1' }],
+            },
+          },
+        },
+      ],
+    }));
+    render(<CustomProviderDialog onSaved={vi.fn()} onClose={vi.fn()} />);
+    await waitForInitialDialogFocus();
+    // 保存空表单 → 名称必填报错。
+    fireEvent.click(screen.getByRole('button', { name: 'settings.providers.custom.save' }));
+    expect(screen.getByText('settings.providers.custom.errors.nameRequired')).toBeTruthy();
+
+    // 应用预设:程序化替换名称/鉴权/全部 runtime,不触发任何输入的 change——
+    // 既有字段错误的指向已整体失效,须同步清除(review P1)。
+    fireEvent.click(
+      screen.getByRole('button', { name: 'settings.providers.custom.presets.label' }),
+    );
+    fireEvent.click(screen.getByRole('option', { name: 'Preset A' }));
+    await waitFor(() =>
+      expect(screen.queryByText('settings.providers.custom.errors.nameRequired')).toBeNull(),
+    );
+    expect(
+      (screen.getByLabelText('settings.providers.custom.fields.name') as HTMLInputElement)
+        .value,
+    ).toBe('Preset A');
+    expect(customProviderMocks.createCustomProvider).not.toHaveBeenCalled();
+  });
 });
