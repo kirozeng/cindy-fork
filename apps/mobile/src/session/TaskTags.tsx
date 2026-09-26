@@ -639,7 +639,7 @@ export function TaskTagsPanel({
     }
     void reorder(id, to, expectedOrder);
   }
-  const textStyle = { color: colors.textPrimary, fontSize: typeScale.body };
+  const textStyle = { color: colors.textPrimary, fontSize: typeScale.body, lineHeight: lineHeight.body };
   const action = (
     label: string,
     onPress: () => void,

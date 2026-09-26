@@ -157,7 +157,7 @@ describe('typography token discipline', () => {
       for (const tag of source.matchAll(/<TextInput\b[\s\S]*?\/>/g)) {
         for (const key of tag[0].matchAll(/styles\.(\w+)/g)) inputKeys.add(key[1]);
       }
-      for (const block of source.matchAll(/(\w+):\s*\{([^{}]*)\}/g)) {
+      for (const block of source.matchAll(/(?:const\s+)?(\w+)(?::|\s*=)\s*\{([^{}]*)\}/g)) {
         const [, key, body] = block;
         if (!/fontSize:\s*typeScale\.\w+/.test(body) || /textStyles\./.test(body)) continue;
         if (/\blineHeight\s*:/.test(body)) continue;
@@ -185,7 +185,7 @@ describe('typography token discipline', () => {
     for (const rel of files) {
       if (!rel.endsWith('.tsx') || LOGIN_CANVAS.some((re) => re.test(rel))) continue;
       const source = readFileSync(join(ROOT, rel), 'utf8');
-      for (const block of source.matchAll(/(\w+):\s*\{([^{}]*)\}/g)) {
+      for (const block of source.matchAll(/(?:const\s+)?(\w+)(?::|\s*=)\s*\{([^{}]*)\}/g)) {
         const [, key, body] = block;
         const color = body.match(/\bcolor:\s*(?:colors|c)\.(\w+)/)?.[1];
         const weight = body.match(/fontWeight\.(\w+)/)?.[1];

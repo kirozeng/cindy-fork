@@ -53,7 +53,7 @@ export function RemoteDesktopSecuritySettings(
 ) {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const hint = { color: colors.textPrimary, fontSize: typeScale.caption };
+  const hint = { color: colors.textPrimary, fontSize: typeScale.caption, lineHeight: lineHeight.caption };
   const switchSlot = {
     width: 56,
     minHeight: 44,
