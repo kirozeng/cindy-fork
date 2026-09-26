@@ -30,7 +30,8 @@
       "system": "Auto (follow system)",
       "light": "Light",
       "dark": "Dark"
-    }
+    },
+    "saveFailed": "Failed to save appearance mode. The previous setting will return after restart."
   },
   "language": {
     "title": "Language",

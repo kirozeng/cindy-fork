@@ -13,15 +13,21 @@ interface ThemeValue {
   colors: ThemeColors;
   /** 用户的显示模式偏好(含 'system');子树覆盖(ThemeOverrideProvider)不改变它。 */
   preference: ThemePreference;
-  /** 设置显示模式偏好 —— 持久化 override、同步原生外观。 */
-  setPreference: (next: ThemePreference) => void;
+  /** 已保存的偏好是否已读回;启动遮罩等它就绪后再释放,避免先按系统外观闪一下。 */
+  preferenceReady: boolean;
+  /**
+   * 设置显示模式偏好:立即切换并同步原生外观,返回的 Promise 在持久化失败时 reject,
+   * 调用方据此提示「未保存」(本次会话仍按新选择显示)。
+   */
+  setPreference: (next: ThemePreference) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeValue>({
   mode: 'light',
   colors: palettes.light,
   preference: 'system',
-  setPreference: () => undefined,
+  preferenceReady: true,
+  setPreference: async () => undefined,
 });
 
 /**
@@ -35,21 +41,25 @@ function applyNativeScheme(preference: ThemePreference): void {
 
 /**
  * 按显示模式偏好(默认跟随系统)向下提供当前主题色板。挂在 SafeAreaProvider 内、其它业务
- * Provider 之上。偏好读出是异步的:先按系统外观渲染首帧,挂载后读出 override 再切换;
- * 启动期有 StartupSplashOverlay 顶着,不产生可见闪变。
+ * Provider 之上。偏好读出是异步的:读回前按系统外观渲染,StartupSplashOverlay 以
+ * `preferenceReady` 为释放条件之一,保证遮罩淡出时已是用户选择的模式。
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  const [preferenceReady, setPreferenceReady] = useState(false);
   // 用户已手动选择过时置位:挂载期的异步读回不得覆盖更晚的手动选择。
   const userChoseRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     void readThemePreference().then((stored) => {
-      if (cancelled || userChoseRef.current || stored === 'system') return;
-      applyNativeScheme(stored);
-      setPreferenceState(stored);
+      if (cancelled) return;
+      if (!userChoseRef.current && stored !== 'system') {
+        applyNativeScheme(stored);
+        setPreferenceState(stored);
+      }
+      setPreferenceReady(true);
     });
     return () => {
       cancelled = true;
@@ -60,14 +70,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     userChoseRef.current = true;
     applyNativeScheme(next);
     setPreferenceState(next);
-    // 持久化失败不影响当前会话切换('system' = 删除 override)。
-    void saveThemePreference(next);
+    return saveThemePreference(next);
   }, []);
 
   const mode = resolveThemeMode(preference, systemScheme);
   const value = useMemo<ThemeValue>(
-    () => ({ mode, colors: palettes[mode], preference, setPreference }),
-    [mode, preference, setPreference],
+    () => ({ mode, colors: palettes[mode], preference, preferenceReady, setPreference }),
+    [mode, preference, preferenceReady, setPreference],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

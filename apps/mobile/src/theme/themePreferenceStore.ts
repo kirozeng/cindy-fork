@@ -29,17 +29,19 @@ export function resolveThemeMode(
   return systemScheme === 'dark' ? 'dark' : 'light';
 }
 
+/** 读失败按「跟随系统」处理:启动不能因为本机存储异常卡住。 */
 export async function readThemePreference(): Promise<ThemePreference> {
   const raw = await AsyncStorage.getItem(STORAGE_KEY).catch(() => null);
   return isThemeOverride(raw) ? raw : 'system';
 }
 
+/** 写失败向上抛出:调用方需告知用户这次选择没有保存,不能把未落盘的选择当成已保存。 */
 export async function saveThemePreference(preference: ThemePreference): Promise<void> {
   if (preference === 'system') {
-    await AsyncStorage.removeItem(STORAGE_KEY).catch(() => undefined);
+    await AsyncStorage.removeItem(STORAGE_KEY);
     return;
   }
-  await AsyncStorage.setItem(STORAGE_KEY, preference).catch(() => undefined);
+  await AsyncStorage.setItem(STORAGE_KEY, preference);
 }
 
 export const __testing = {

@@ -326,9 +326,12 @@ export default function SettingsScreen() {
   const selectAppearance = useCallback((next: string) => {
     const nextPreference = THEME_PREFERENCES.find((option) => option === next);
     if (!nextPreference) return;
-    setThemePreference(nextPreference);
     setAppearancePickerOpen(false);
-  }, [setThemePreference]);
+    // 本次会话已切换;只有本机存储写失败时提示下次启动会回到原设置。
+    setThemePreference(nextPreference).catch(() => {
+      Alert.alert(t('settings.appearance.modeLabel'), t('settings.appearance.saveFailed'));
+    });
+  }, [setThemePreference, t]);
 
   useEffect(() => {
     if (!auth.isAuthenticated || !auth.deviceId) {

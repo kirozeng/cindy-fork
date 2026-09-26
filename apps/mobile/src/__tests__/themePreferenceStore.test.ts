@@ -49,6 +49,20 @@ describe('themePreferenceStore', () => {
     await expect(readThemePreference()).resolves.toBe('system');
   });
 
+  it('读失败按跟随系统处理,不阻塞启动', async () => {
+    const storage = (await import('@react-native-async-storage/async-storage')).default;
+    vi.mocked(storage.getItem).mockRejectedValueOnce(new Error('disk'));
+    await expect(readThemePreference()).resolves.toBe('system');
+  });
+
+  it('写失败向上抛出,调用方才能提示「未保存」', async () => {
+    const storage = (await import('@react-native-async-storage/async-storage')).default;
+    vi.mocked(storage.setItem).mockRejectedValueOnce(new Error('disk full'));
+    await expect(saveThemePreference('dark')).rejects.toThrow('disk full');
+    vi.mocked(storage.removeItem).mockRejectedValueOnce(new Error('disk full'));
+    await expect(saveThemePreference('system')).rejects.toThrow('disk full');
+  });
+
   it('有效模式 = override ?? 系统外观', () => {
     expect(resolveThemeMode('system', 'dark')).toBe('dark');
     expect(resolveThemeMode('system', 'light')).toBe('light');
