@@ -1,21 +1,74 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Appearance, StyleSheet, useColorScheme } from 'react-native';
 import { palettes, type ThemeColors, type ThemeMode } from './tokens';
+import {
+  readThemePreference,
+  resolveThemeMode,
+  saveThemePreference,
+  type ThemePreference,
+} from './themePreferenceStore';
 
 interface ThemeValue {
   mode: ThemeMode;
   colors: ThemeColors;
+  /** 用户的显示模式偏好(含 'system');子树覆盖(ThemeOverrideProvider)不改变它。 */
+  preference: ThemePreference;
+  /** 设置显示模式偏好 —— 持久化 override、同步原生外观。 */
+  setPreference: (next: ThemePreference) => void;
 }
 
-const ThemeContext = createContext<ThemeValue>({ mode: 'light', colors: palettes.light });
+const ThemeContext = createContext<ThemeValue>({
+  mode: 'light',
+  colors: palettes.light,
+  preference: 'system',
+  setPreference: () => undefined,
+});
 
 /**
- * 跟随系统 light / dark,向下提供当前主题色板。挂在 SafeAreaProvider 内、其它业务 Provider 之上。
+ * 让系统绘制的部分(原生菜单 / 面板 / 键盘 / 状态栏 / 玻璃材质)与 Cindy 色板同一模式:
+ * 'system' 还原为 unspecified,浅色 / 深色强制对应外观。只改 JS 调用,不动原生配置。
+ * 强制期间 useColorScheme 读到的是被强制的外观;还原后下一次渲染即读回系统值。
+ */
+function applyNativeScheme(preference: ThemePreference): void {
+  Appearance.setColorScheme(preference === 'system' ? 'unspecified' : preference);
+}
+
+/**
+ * 按显示模式偏好(默认跟随系统)向下提供当前主题色板。挂在 SafeAreaProvider 内、其它业务
+ * Provider 之上。偏好读出是异步的:先按系统外观渲染首帧,挂载后读出 override 再切换;
+ * 启动期有 StartupSplashOverlay 顶着,不产生可见闪变。
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const scheme = useColorScheme();
-  const mode: ThemeMode = scheme === 'dark' ? 'dark' : 'light';
-  const value = useMemo<ThemeValue>(() => ({ mode, colors: palettes[mode] }), [mode]);
+  const systemScheme = useColorScheme();
+  const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  // 用户已手动选择过时置位:挂载期的异步读回不得覆盖更晚的手动选择。
+  const userChoseRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readThemePreference().then((stored) => {
+      if (cancelled || userChoseRef.current || stored === 'system') return;
+      applyNativeScheme(stored);
+      setPreferenceState(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setPreference = useCallback((next: ThemePreference) => {
+    userChoseRef.current = true;
+    applyNativeScheme(next);
+    setPreferenceState(next);
+    // 持久化失败不影响当前会话切换('system' = 删除 override)。
+    void saveThemePreference(next);
+  }, []);
+
+  const mode = resolveThemeMode(preference, systemScheme);
+  const value = useMemo<ThemeValue>(
+    () => ({ mode, colors: palettes[mode], preference, setPreference }),
+    [mode, preference, setPreference],
+  );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
@@ -39,7 +92,7 @@ export function ThemeOverrideProvider({
 }) {
   const parent = useContext(ThemeContext);
   const value = useMemo<ThemeValue>(
-    () => (mode == null ? parent : { mode, colors: palettes[mode] }),
+    () => (mode == null ? parent : { ...parent, mode, colors: palettes[mode] }),
     [mode, parent],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
