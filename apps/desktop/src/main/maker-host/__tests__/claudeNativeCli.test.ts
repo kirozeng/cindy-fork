@@ -176,6 +176,17 @@ describe('登录态读取', () => {
     expect(argsOf(h.spawn.mock.calls[1])).toEqual(['auth', 'status', '--json']);
   });
 
+  it('内置 CLI 尚未就绪不算失败:不进退避,就绪后下一次读取立即拉起', async () => {
+    h.binary = null;
+    await expect(refreshClaudeCliLoginStatus()).resolves.toEqual({ loggedIn: false });
+    expect(h.spawn).not.toHaveBeenCalled();
+    // 启动期二进制准备完成后的补读:不能被上一次「未就绪」挡在 30s 退避里。
+    h.binary = '/opt/cindy/claude';
+    h.spawn.mockImplementation(() => fakeChild({ stdout: SUBSCRIPTION }));
+    await expect(readClaudeCliLoginStatus()).resolves.toMatchObject({ loggedIn: true });
+    expect(h.spawn).toHaveBeenCalledTimes(1);
+  });
+
   it('staleWhileRevalidate:没有缓存时不等 CLI,后台读完再更新缓存', async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });

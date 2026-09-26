@@ -15,9 +15,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import path from 'node:path';
 
-import { app } from 'electron';
 import { cleanProcessEnv } from '@cindy/maker-core';
 import { hasProxyEnvConfig, parseOutboundProxyUrl } from '@cindy/anthropic-compat-proxy';
 
@@ -50,18 +48,6 @@ const STATUS_TIMEOUT_MS = 10_000;
 const STATUS_FAILURE_BACKOFF_MS = 30_000;
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 const ANTHROPIC_API_ORIGIN = 'https://api.anthropic.com';
-
-/**
- * dev 多实例(XDT_USER_DATA_DIR)把 Claude Code 的配置目录切到 userData 下,
- * 否则多实例共用 ~/.claude 互相干扰。生产恒为 undefined(用 CLI 默认目录)。
- * process.env 的 CLAUDE_CONFIG_DIR 在 boot 期已被剥离,只能经子进程 env 注入。
- */
-export function claudeCliConfigDirOverride(): string | undefined {
-  if (process.env.XDT_USER_DATA_DIR && !app.isPackaged && !process.env.CLAUDE_CONFIG_DIR) {
-    return path.join(app.getPath('userData'), 'claude-home');
-  }
-  return undefined;
-}
 
 const LOOPBACK_NO_PROXY = 'localhost,127.0.0.1,::1';
 
@@ -106,12 +92,14 @@ function cliBinaryPath(): string | null {
   return getReadyBinaryPath('claude-code') ?? null;
 }
 
+/**
+ * 登录与登录态检查用 CLI 默认配置目录(dev 多实例也一样),凭证库因此与终端里的
+ * `claude`、订阅会话共用同一份。process.env 的 CLAUDE_CONFIG_DIR 在 boot 期已被剥离。
+ */
 async function cliEnv(options: { network: boolean }): Promise<NodeJS.ProcessEnv> {
-  const configDir = claudeCliConfigDirOverride();
   return {
     ...cleanProcessEnv(),
     ...(options.network ? await claudeCliNetworkEnv() : {}),
-    ...(configDir ? { CLAUDE_CONFIG_DIR: configDir } : {}),
   };
 }
 
@@ -207,11 +195,13 @@ function statusFallback(): ClaudeCliLoginStatus {
 
 /**
  * 读 CLI 登录态(`claude auth status --json`,约 0.1–0.3s)。同一时刻只跑一个;
- * 读失败(CLI 未就绪 / 超时 / 输出异常)时保留上一次结果,从未读到过则视为未登录,
+ * 读失败(超时 / 输出异常 / 拉起失败)时保留上一次结果,从未读到过则视为未登录,
  * 并在 STATUS_FAILURE_BACKOFF_MS 内不再重试(force 除外,如用户主动登录)。
+ * 内置 CLI 尚未就绪(启动期二进制还在准备)不算失败、不进退避:就绪后启动流程会再读一次。
  */
 export function refreshClaudeCliLoginStatus(options?: { force?: boolean }): Promise<ClaudeCliLoginStatus> {
   if (statusInflight) return statusInflight;
+  if (!cliBinaryPath()) return Promise.resolve(statusFallback());
   if (
     options?.force !== true &&
     lastStatusFailureAt !== null &&
