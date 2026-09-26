@@ -116,6 +116,13 @@ export const MAKER_INVOKE = {
    * 读不到 / 解析失败一律返回 null,renderer 据此回退到 workflow 级卡片。
    */
   GET_WORKFLOW_PROGRESS: 'maker:get-workflow-progress',
+  /**
+   * 读取后台命令(local_bash 任务)输出文件的末尾一段 + mtime,供任务卡展开区显示
+   * 「最近输出」,让用户确认任务仍在推进。只读;入参 (sessionId, taskId),输出路径由主进程
+   * 从该会话仍在运行的后台任务登记中取,调用方不能传路径。任务已终态 / SSH 远程工作区
+   * 会话返回 unavailable。
+   */
+  READ_BACKGROUND_TASK_OUTPUT_TAIL: 'maker:background-task:output-tail',
   GET_CAPABILITIES: 'maker:get-capabilities',
   /**
    * device-link 远程草稿镜像:控制端为被控设备新建项目草稿时,经隧道读被控端**当前
