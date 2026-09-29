@@ -53,12 +53,12 @@ const LAYER_SELECTOR = [
  * - 已被别处处理（defaultPrevented）或处于输入法组字中：让位。
  * - 焦点在可编辑控件、或卡片外的菜单 / 弹层 / 对话框里：让位。
  * - 焦点在卡片外的按钮、链接等控件上：让位，按键属于那个控件所在的界面。
- * - 焦点在卡片自己的控件上：回车 / 空格让给控件原生激活（在「拒绝」上按回车就是拒绝）；
- *   Esc 与数字键没有原生含义，仍按卡片快捷键处理。
+ * - 焦点在卡片自己的控件上：普通回车 / 空格让给控件原生激活（在「拒绝」上按回车就是拒绝）；
+ *   Esc 与数字键没有原生含义，仍按卡片快捷键处理。带修饰键的卡片快捷键也保留自己的语义。
  */
 export function shouldCardShortcutYield(
   event: KeyboardEvent,
-  kind: 'activate' | 'dismiss' | 'character',
+  kind: 'activate' | 'modifiedActivate' | 'dismiss' | 'character',
   owner: Element | null,
 ): boolean {
   if (event.defaultPrevented || event.isComposing) return true;

@@ -175,7 +175,9 @@ export function PermissionPrompt({ permission, onRespond, companion }: Permissio
       // 按键已有归属时不替用户做授权决定：输入法组字、正在打字、刚被菜单处理的 Esc、
       // 焦点在「拒绝」等按钮上的回车（交给按钮本身激活）都让位。
       if (e.key !== 'Enter' && e.key !== 'Escape') return;
-      if (shouldCardShortcutYield(e, e.key === 'Escape' ? 'dismiss' : 'activate', cardRef.current)) return;
+      const shortcutKind =
+        e.key === 'Escape' ? 'dismiss' : e.ctrlKey || e.metaKey ? 'modifiedActivate' : 'activate';
+      if (shouldCardShortcutYield(e, shortcutKind, cardRef.current)) return;
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleAlwaysAllow();

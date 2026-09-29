@@ -8,6 +8,7 @@
  * 以及 Mermaid 源码编辑器：点遮罩不能丢掉未保存的修改。
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -68,8 +69,9 @@ describe('shouldCardShortcutYield', () => {
     expect(shouldCardShortcutYield(event(document.body, {isComposing: true}), 'activate', owner)).toBe(true);
   });
 
-  it('卡片自己的按钮：回车让给按钮激活，Esc 与数字键仍归卡片', () => {
+  it('卡片自己的按钮：普通回车让给按钮激活，带修饰键的回车仍归卡片', () => {
     expect(shouldCardShortcutYield(event(ownButton), 'activate', owner)).toBe(true);
+    expect(shouldCardShortcutYield(event(ownButton), 'modifiedActivate', owner)).toBe(false);
     expect(shouldCardShortcutYield(event(ownButton, {key: 'Escape'}), 'dismiss', owner)).toBe(false);
     expect(shouldCardShortcutYield(event(ownButton, {key: '1'}), 'character', owner)).toBe(false);
   });
@@ -87,17 +89,60 @@ describe('shouldCardShortcutYield', () => {
   });
 });
 
-function permission(): PendingPermission {
-  return {requestId: 'req-1', toolName: 'Bash', input: {command: 'ls'}};
+function permission(suggestions?: unknown[]): PendingPermission {
+  return {
+    requestId: 'req-1',
+    toolName: 'Bash',
+    input: {command: 'ls'},
+    ...(suggestions ? {suggestions} : {}),
+  };
 }
 
 describe('PermissionPrompt 快捷键不替用户误批', () => {
-  it('焦点在「拒绝」上按回车，不会执行「允许一次」', () => {
+  it('焦点在「拒绝」上按回车，由按钮原生激活并执行拒绝', async () => {
+    const user = userEvent.setup();
     const onRespond = vi.fn();
     render(createElement(PermissionPrompt, {permission: permission(), onRespond}));
     const deny = screen.getByRole('button', {name: /agentIsland\.native\.deny/});
-    keyOn(deny, 'Enter');
-    expect(onRespond).not.toHaveBeenCalled();
+    deny.focus();
+    await user.keyboard('{Enter}');
+    expect(onRespond).toHaveBeenCalledWith({
+      behavior: 'deny',
+      message: 'User denied',
+      decisionClassification: 'user_reject',
+    });
+  });
+
+  it('焦点在卡片按钮上按 Ctrl/⌘+Enter，仍执行本对话都允许', () => {
+    const onRespond = vi.fn();
+    render(
+      createElement(PermissionPrompt, {
+        permission: permission([
+          {
+            type: 'addRules',
+            rules: [{ toolName: 'Bash', ruleContent: 'curl:*' }],
+            behavior: 'allow',
+            destination: 'session',
+          },
+        ]),
+        onRespond,
+      }),
+    );
+    const deny = screen.getByRole('button', { name: /agentIsland\.native\.deny/ });
+    const allowOnce = screen.getByRole('button', { name: /agentIsland\.native\.allowOnce/ });
+
+    deny.focus();
+    keyOn(deny, 'Enter', { ctrlKey: true });
+    expect(onRespond).toHaveBeenLastCalledWith(
+      expect.objectContaining({ decisionClassification: 'user_permanent' }),
+    );
+
+    onRespond.mockClear();
+    allowOnce.focus();
+    keyOn(allowOnce, 'Enter', { metaKey: true });
+    expect(onRespond).toHaveBeenLastCalledWith(
+      expect.objectContaining({ decisionClassification: 'user_permanent' }),
+    );
   });
 
   it('在卡片外的菜单里按 Esc 关菜单，不会顺带拒绝', () => {
