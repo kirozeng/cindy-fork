@@ -21,7 +21,11 @@ import { Pin } from 'lucide-react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const globals = readFileSync(resolve(__dirname, '../../../styles/globals.css'), 'utf8');
+// Keep CSS source assertions independent of Git's platform-specific checkout line endings.
+const globals = readFileSync(resolve(__dirname, '../../../styles/globals.css'), 'utf8').replace(
+  /\r\n?/g,
+  '\n',
+);
 
 // jsdom has no layout, so every row reports a zero rect; these tests cover the
 // behaviour that does not depend on geometry (target row, layer, a11y); the
