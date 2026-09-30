@@ -821,3 +821,24 @@ Switch 解耦。插件插槽挂载同一个媒体组件，不再维护单独拖�
 ## 2026-09-18 — Desktop Segmented v8
 
 用户确认将 Design Lab v8 落到 Desktop，全量复用共享 `SegmentedControl`；仅自审和 E2E，不做本地双审。轨道用浅色黑 6% / 暗色黑 25% 透明叠加，选中药丸用低对比描边和两层轻阴影。保留各场景密度、业务回调及独立分离式选项；Mobile / iOS 延后。规范见 DESIGN.md §4 Desktop segmented controls，精确颜色/阴影进入 DTCG。实施与实际验证另见本次证据，不把线上设计预览等同客户端验收。
+
+## 2026-09-30 — 共享下拉菜单与浮层：12px 面板 + 登记浮层阴影
+
+- **决定人：用户/设计师**（经 Orca lead 转达）。圆角由用户先行确定；阴影在 Design Lab
+  对比现状 / 方案 A（登记阴影）/ 方案 B（无阴影）后选 A，原话：「我倾向于选择A，有阴影的」。
+- 共享 `DropdownMenuContent` / `DropdownMenuSubContent` / `PopoverContent` 默认值：
+  `rounded-md` → `rounded-xl`（12px），默认 `shadow-md` / `shadow-lg` →
+  `shadow-[shadow:var(--shadow-menu)]`；`DropdownMenuItem` / `CheckboxItem` / `RadioItem` /
+  `SubTrigger` 高亮 `rounded-sm` → `rounded-lg`（8px）。颜色、间距、宽度、动画、层级与
+  键盘行为不变；调用方传入的 className 仍然优先。
+- 原因：面板属于 §5 的 12px 容器档、行高亮属于 8px 内层档，与侧栏统一样式
+  （`menuStyles.ts`）一致；阴影使用 §6 / §10 已登记的 `--shadow-menu` token，不另造阴影。
+  DESIGN §4「Select & Dropdown」原写「no shadow」，与 §6 的浮层 token 例外及侧栏菜单的
+  写法冲突，本次按用户决定改写，Select 面板仍无阴影。
+- 实测发现：Tailwind 3 把无类型提示的 `shadow-[var(--shadow-menu)]` 解析为阴影**颜色**，
+  生成的 CSS 没有 `box-shadow` 声明，实际不显示阴影；与 `shadow-md` 等同时出现时还会把后者
+  也抵消。必须写成 `shadow-[shadow:var(--shadow-menu)]`。全仓约 71 处
+  `shadow-[var(--shadow-menu)]`（含 `MENU_CONTENT_CLASS`）、24 处 `--confirm-shadow` 等同类写法
+  目前均不生效，另开 PR 修复，本次不改。
+- 场景盘点（81 个菜单 + 26 个 Popover、15 种外观组合）与对比稿见 Design Lab
+  `#/dropdown-menu`；这是方向决定，不代表客户端实机视觉已验收。
