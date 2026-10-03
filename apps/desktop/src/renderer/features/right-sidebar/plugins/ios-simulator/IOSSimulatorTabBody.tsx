@@ -2435,7 +2435,7 @@ export function IOSSimulatorTabBody({
                           <DropdownMenuItem
                             disabled={busy}
                             onSelect={() => setDeleteTarget(attachedInstance)}
-                            className="text-[var(--error-fg)] focus:bg-[var(--error-bg)] focus:text-[var(--error-fg-strong)]"
+                            variant="danger"
                           >
                             <Trash2 size={14} className="mr-2 shrink-0" aria-hidden="true" />
                             {t('rightSidebar.iosSimulator.deleteDevice')}

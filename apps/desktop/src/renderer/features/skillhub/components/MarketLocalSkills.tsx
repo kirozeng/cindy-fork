@@ -39,11 +39,10 @@ export function MarketLocalSkills({ skill }: {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end"
-            className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-0 rounded-xl border-[var(--border-default)] bg-[var(--surface-elevated)] p-1.5 shadow-none">
+            className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-0 p-1.5">
             <DropdownMenuRadioGroup value={selected.id} onValueChange={setSelectedId}>
               {copies.map((local) => (
-                <DropdownMenuRadioItem key={local.id} value={local.id}
-                  className="rounded-lg text-13 focus:bg-[var(--surface-hover)] data-[state=checked]:bg-[var(--surface-chip)]">
+                <DropdownMenuRadioItem key={local.id} value={local.id}>
                   <span className="min-w-0">
                     <span className="block">{scopeLabel(local)}{' · '}
                       {local.registryEntry ? `v${local.registryEntry.version}` : t('skillhub.sidebar.marketLocalCopy')}

@@ -1700,11 +1700,7 @@ export function ComputerUseSection({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={cn(
-                  'min-w-[260px] max-w-[360px]',
-                  'border border-[var(--settings-input-border)]',
-                  'bg-[var(--settings-theme-card-bg)] text-[var(--settings-section-title)]',
-                )}
+                className="min-w-[260px] max-w-[360px]"
               >
                 <DropdownMenuItem
                   onClick={() => void handleSelectAndroidDevice(ANDROID_AUTO_DEVICE_VALUE)}
