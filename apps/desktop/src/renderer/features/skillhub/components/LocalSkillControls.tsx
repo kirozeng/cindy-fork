@@ -83,7 +83,7 @@ export function LocalSkillControls({ skill, disabled = false, onUninstalled }: {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="p-1.5">
-          <DropdownMenuItem disabled={!skill.canUninstall} onSelect={() => { void uninstall(); }}
+          <DropdownMenuItem variant="danger" disabled={!skill.canUninstall} onSelect={() => { void uninstall(); }}
             className="gap-2">
             <Trash2 size={14} />{t('skillhub.detail.uninstall')}
           </DropdownMenuItem>

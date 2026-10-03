@@ -491,9 +491,7 @@ export function TaskListCell({
           {canDelete && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => void onDelete(s)}
-              >
+              <DropdownMenuItem variant="danger" onSelect={() => void onDelete(s)}>
                 <Trash2 size={13} strokeWidth={2} className="mr-2" />
                 {t('scheduler.cell.menu.deleteAutomation')}
               </DropdownMenuItem>

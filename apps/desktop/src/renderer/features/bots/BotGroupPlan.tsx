@@ -179,7 +179,7 @@ function EditableStepRow({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-12 font-normal text-[var(--text-tertiary)]">
+        <DropdownMenuLabel>
           {t('bots.groupChat.plan.stepMenuTitle')}
         </DropdownMenuLabel>
         {candidates.map((member) => {
