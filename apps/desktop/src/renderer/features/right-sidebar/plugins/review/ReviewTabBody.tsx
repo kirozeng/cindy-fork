@@ -2729,7 +2729,7 @@ export function SourceDropdown({
                       className="min-w-0 gap-2"
                     >
                       <span className="min-w-0 flex-1 truncate">{title}</span>
-                      <span className="shrink-0 text-10 text-[var(--text-tertiary)]">
+                      <span className="shrink-0 text-12 leading-[1.33] text-[var(--cmd-palette-item-meta)]">
                         {t('rightSidebar.review.commitMenu.relativeTime', {
                           time: formatSidebarTime(
                             new Date(commit.authorTime * 1000).toISOString(),

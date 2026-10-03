@@ -701,7 +701,7 @@ export function WorkdirBrowseSidebar({
                     onSelect={() => handleSwitchProject(project)}
                   >
                     <span className="min-w-0 flex-1 truncate">{project.displayName}</span>
-                    <span className="ml-2 shrink-0 text-11 text-[var(--cmd-palette-item-meta)]">
+                    <span className="ml-2 shrink-0 text-12 leading-[1.33] text-[var(--cmd-palette-item-meta)]">
                       {t('ccAgent.workdirBrowse.activeSessionCount', {
                         count: project.activeSessionCount,
                       })}

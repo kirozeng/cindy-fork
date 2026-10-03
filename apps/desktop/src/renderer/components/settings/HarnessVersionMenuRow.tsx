@@ -50,7 +50,7 @@ export function HarnessVersionMenuItem({ label, version, disabled, onSelect }: {
 }) {
   return (
     <DropdownMenuItem className={HARNESS_MENU_ITEM_CLASS} disabled={disabled} onSelect={onSelect}>
-      <span className="flex-1">{label}</span><span className="text-12 text-[var(--text-secondary)]">{version ?? '—'}</span>
+      <span className="flex-1">{label}</span><span className="text-12 leading-[1.33] text-[var(--cmd-palette-item-meta)]">{version ?? '—'}</span>
     </DropdownMenuItem>
   );
 }

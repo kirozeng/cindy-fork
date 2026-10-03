@@ -2333,7 +2333,7 @@ export function IOSSimulatorTabBody({
                               </span>
                               <span
                                 aria-hidden="true"
-                                className="max-w-28 truncate text-10 text-[var(--text-secondary)]"
+                                className="max-w-28 truncate text-12 leading-[1.33] text-[var(--cmd-palette-item-meta)]"
                               >
                                 {streamProfileLabel}
                               </span>

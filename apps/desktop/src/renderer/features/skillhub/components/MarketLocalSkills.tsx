@@ -47,7 +47,7 @@ export function MarketLocalSkills({ skill }: {
                     <span className="block">{scopeLabel(local)}{' · '}
                       {local.registryEntry ? `v${local.registryEntry.version}` : t('skillhub.sidebar.marketLocalCopy')}
                     </span>
-                    <span className="block break-all text-11 text-[var(--text-secondary)]">{locationLabel(local)}</span>
+                    <span className="block break-all text-12 leading-[1.33] text-[var(--cmd-palette-item-meta)]">{locationLabel(local)}</span>
                   </span>
                 </DropdownMenuRadioItem>
               ))}
