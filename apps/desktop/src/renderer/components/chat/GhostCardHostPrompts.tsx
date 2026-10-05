@@ -177,7 +177,6 @@ export function GhostCardLinkConfirm({
             size="xs"
             compact
             type="button"
-            onClick={onCancel}
           >
             {t('chat.ghostCall.linkConfirmCancel')}
           </Button></AlertDialog.Cancel>

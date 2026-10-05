@@ -525,7 +525,7 @@ describe('AddProviderWizard — OpenAI 授权边界', () => {
   });
 });
 
-describe('AddProviderWizard — 关闭途径(取消 / Esc)', async () => {
+describe('AddProviderWizard — 关闭途径(取消 / Esc)', () => {
   it('按 Esc 关闭向导', async () => {
     const onClose = vi.fn();
     render(

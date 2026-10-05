@@ -1099,7 +1099,7 @@ it.each(['audioModels', 'embeddingModels'] as const)('opens key setup for a disc
   const store = vi.fn(async () => undefined);
   window.electronAPI.builtinApiKeyStore = store;
   const onDone = vi.fn();
-  const view = render(<AddProviderWizard providers={[mediaProvider]} onOpenCustomForm={vi.fn()} onClose={vi.fn()} onDone={onDone} />);
+  render(<AddProviderWizard providers={[mediaProvider]} onOpenCustomForm={vi.fn()} onClose={vi.fn()} onDone={onDone} />);
   fireEvent.click(await screen.findByText('Media Only'));
   expect(await screen.findByText('settings.providers.wizard.builtinApiKey.subtitle')).toBeTruthy();
   const keyInput = screen.getByRole('dialog').querySelector('input[type="password"]');

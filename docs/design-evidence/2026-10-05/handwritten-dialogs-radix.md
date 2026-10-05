@@ -54,3 +54,10 @@ Light / Dark 各 5 个弹窗、共 10 组 before / after：panel / scrim 的 x�
 - 向导 / 供应商 / Worker 来自真实业务入口；Ghost / Mermaid 是真实 Electron 中临时挂载生产组件的测试入口，未跑完整插件 iframe 外链与 CodeMirror 文件编辑端到端路径。保存 / 创建成功失败门由可控 promise 单测覆盖，未做真实账号 mutation。
 - 截图 / JSON 本地目录 `artifacts/handwritten-dialogs`（Git 忽略），文件名 `{wizard,provider,worker,ghost,mermaid}-{light,dark}-{before,after}.{png,json}`；动画审计 `animation-audit.json`，键盘 / 回焦 `focus-real.json`。未提交截图、运行日志或测试替身。
 - 公开图片附件尚未上传：按治理 §6，GitHub CLI / REST 无附件上传入口，需由人在 PR 评论拖拽图片；后续可把评论链接补入本索引。该缺口在草稿 PR 申报。
+
+## 提交后复检（2026-10-05）
+
+- 简洁度检查删除 Ghost Cancel 上重复的手动 onClick，统一经 Radix Cancel → Root onOpenChange → useDialogExit 结算；取消 / Esc / 打开仍各只结算一次。清理测试的无用变量和无用 async suite 声明，不更改测试断言。
+- 重新运行 design-colors（包含实际 worktree）、design-inventory（52 surface）、dev-docs（10 项）：通过。颜色 unexpected=0，报告项是既有表单采用提示与本证据实测 RGB 记录。
+- 清理后 Desktop typecheck 与 test:unit:related（40.1s）通过，git diff --check 通过。
+- 截图仍对应 `0ff0d015767491884ed2c2759233ed5c7c639e72`；本次清理只去掉重复处理，无外观变化。

@@ -257,7 +257,7 @@ describe('ProviderConnectionDialog preset locale ownership', () => {
 
   it('does not close the provider form on a scrim gesture', async () => {
     i18nState.language = 'zh-TW';
-    const { container, onClose } = renderDialog();
+    const { onClose } = renderDialog();
 
     const trigger = await findReadyPresetTrigger();
     fireEvent.click(trigger);
