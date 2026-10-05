@@ -1102,12 +1102,12 @@ it.each(['audioModels', 'embeddingModels'] as const)('opens key setup for a disc
   const view = render(<AddProviderWizard providers={[mediaProvider]} onOpenCustomForm={vi.fn()} onClose={vi.fn()} onDone={onDone} />);
   fireEvent.click(await screen.findByText('Media Only'));
   expect(await screen.findByText('settings.providers.wizard.builtinApiKey.subtitle')).toBeTruthy();
-  const keyInput = view.container.querySelector('input[type="password"]');
+  const keyInput = screen.getByRole('dialog').querySelector('input[type="password"]');
   expect(keyInput).not.toBeNull();
   fireEvent.change(keyInput!, { target: { value: 'test-media-key' } });
   fireEvent.click(screen.getByRole('button', { name: 'settings.providers.wizard.finish' }));
   await waitFor(() => expect(store).toHaveBeenCalledWith('gemini', 'test-media-key'));
-  expect(onDone).toHaveBeenCalledWith('gemini');
+  await waitFor(() => expect(onDone).toHaveBeenCalledWith('gemini'));
 });
 
 
@@ -1311,7 +1311,7 @@ it('does not discard the OAuth connection if the wizard closes while finish is s
   await screen.findByText('Test model');
   fireEvent.click(screen.getByRole('button', { name: 'settings.providers.wizard.finish' }));
   await waitFor(() => expect(updateCustomProvider).toHaveBeenCalledOnce());
-  fireEvent.keyDown(window, { key: 'Escape' });
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
   fireEvent.click(screen.getByRole('button', { name: 'settings.providers.wizard.cancel' }));
   expect(onClose).not.toHaveBeenCalled();
   expect(deleteCustomProvider).not.toHaveBeenCalled();
