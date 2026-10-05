@@ -53,7 +53,7 @@ Light / Dark 各 5 个弹窗、共 10 组 before / after：panel / scrim 的 x�
 - Windows 实机未验证：本机 macOS；no-drag 几何、系统窗口行为与无 blur 回退等待 Windows 复核。
 - 向导 / 供应商 / Worker 来自真实业务入口；Ghost / Mermaid 是真实 Electron 中临时挂载生产组件的测试入口，未跑完整插件 iframe 外链与 CodeMirror 文件编辑端到端路径。保存 / 创建成功失败门由可控 promise 单测覆盖，未做真实账号 mutation。
 - 截图 / JSON 本地目录 `artifacts/handwritten-dialogs`（Git 忽略），文件名 `{wizard,provider,worker,ghost,mermaid}-{light,dark}-{before,after}.{png,json}`；动画审计 `animation-audit.json`，键盘 / 回焦 `focus-real.json`。未提交截图、运行日志或测试替身。
-- 公开图片附件尚未上传：按治理 §6，GitHub CLI / REST 无附件上传入口，需由人在 PR 评论拖拽图片；后续可把评论链接补入本索引。该缺口在草稿 PR 申报。
+- 20 张公开图片已上传为 [cindy-fork Release 证据附件](https://github.com/kirozeng/cindy-fork/releases/tag/pr-5491-ui-evidence)，并嵌入 [PR #5491 描述](https://github.com/makecindy/cindy/pull/5491)：每个弹窗均有 Light / Dark × before / after。PNG 不进入代码提交历史；这是截图证据存储页，不是客户端版本发布。使用既有 GitHub CLI 登录上传 Release assets，无需网页登录。
 
 ## 提交后复检（2026-10-05）
 
