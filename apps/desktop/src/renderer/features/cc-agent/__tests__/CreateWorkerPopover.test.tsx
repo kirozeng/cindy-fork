@@ -317,6 +317,28 @@ describe('CreateWorkerPopover', () => {
     }
   });
 
+  it.each([
+    ['role', 'orca.createWorker.customRolePlaceholder', { isComposing: true }],
+    ['role', 'orca.createWorker.customRolePlaceholder', { keyCode: 229 }],
+    ['task', 'orca.createWorker.initialTaskPlaceholder', { isComposing: true }],
+    ['task', 'orca.createWorker.initialTaskPlaceholder', { keyCode: 229 }],
+  ] as const)('preserves the %s draft in %s on IME Esc (%j)', (_field, placeholder, ime) => {
+    const onClose = vi.fn();
+    render(<CreateWorkerPopover open onClose={onClose} onCreate={vi.fn()} />);
+    const input = screen.getByPlaceholderText(placeholder) as HTMLInputElement | HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Worker draft' } });
+    input.focus();
+
+    fireEvent.keyDown(input, { key: 'Escape', ...ime });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(input.value).toBe('Worker draft');
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('blocks both Esc and the close button until creation settles', async () => {
     let finish!: () => void;
     const onCreate = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));

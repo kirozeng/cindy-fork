@@ -669,7 +669,7 @@ export function CreateWorkerPopover({
           if (openerRef.current?.isConnected) openerRef.current.focus({ preventScroll: true });
         }}
         onEscapeKeyDown={(event) => {
-          if (submittingRef.current) event.preventDefault();
+          if (submittingRef.current || event.isComposing || event.keyCode === 229) event.preventDefault();
         }}
         style={WINDOW_NO_DRAG_STYLE}
       >
