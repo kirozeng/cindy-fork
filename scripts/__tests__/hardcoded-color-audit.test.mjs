@@ -7,13 +7,16 @@ import matter from 'gray-matter';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { findBareColors, matchBareColors } from '../shared/hardcoded-color-match.mjs';
-import { addedLines, inspectFile, readExemptions, objectPathAt, audit } from '../hardcoded-color-audit.mjs';
+import { addedLines, inspectFile, readExemptions, validateExemptions, objectPathAt, audit } from '../hardcoded-color-audit.mjs';
 import { classifyDesignLayer, reportDesignLayers } from '../shared/design-layer-report.mjs';
 import { resolvePosixShell } from '../lib/posix-shell.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const exemptions = readExemptions(root);
 const renderer = 'apps/desktop/src/renderer/';
-const inspect = (file, source) => inspectFile(file, source, new Set(source.split('\n').map((_, i) => i + 1)), exemptions);
+// Fixed calendar day so narrow-exemption expiry never turns these cases into a time bomb.
+const TODAY = '2026-10-30';
+const inspect = (file, source) => inspectFile(file, source, new Set(source.split('\n').map((_, i) => i + 1)), exemptions, undefined, TODAY);
+const archivedExemptions = JSON.parse(fs.readFileSync(path.join(root, 'scripts/hardcoded-color-exemptions.archive.json'), 'utf8')).entries;
 const bash = resolvePosixShell('bash');
 const runBash = script => bash ? spawnSync(bash, ['-e', '-c', script]) : null;
 
@@ -75,8 +78,26 @@ test('nested fallback and mixed expressions report each literal at its real loca
   assert.deepEqual(findBareColors(mixed).map(h => mixed.slice(h.index, h.end)), ['#fff', 'rgb(1,2,3)']);
 });
 
+test('the live exemption table only holds narrow, dated entries; retired whole-file records live in the archive', () => {
+  assert.ok(exemptions.length > 0);
+  assert.ok(exemptions.every(e => Array.isArray(e.matches) && e.matches.length && /^\d{4}-\d{2}-\d{2}$/.test(e.reviewDate)));
+  assert.ok(archivedExemptions.length > 0 && archivedExemptions.every(e => e.matches === undefined));
+});
+
+test('an expired narrow exemption stops approving new lines', () => {
+  const entry = { glob: `${renderer}styles/expiry.css`, reason: 'fixture', owner: 'test', reviewDate: '2026-09-17',
+    matches: [{ value: '#123456', before: 'color:\\s*' }] };
+  const source = '.a { color: #123456; }';
+  const run = today => inspectFile(entry.glob, source, new Set([1]), [entry], undefined, today).filter(f => f.rule === 'bare-color');
+  assert.equal(run('2026-09-17')[0].disposition, 'allowed');
+  const [expired] = run('2026-09-18');
+  assert.equal(expired.disposition, 'block');
+  assert.match(expired.reason, /expired on 2026-09-17/);
+  assert.throws(() => validateExemptions([{ ...entry, reviewDate: 'soon' }]), /Invalid reviewDate/);
+});
+
 test('every old exempt Desktop consumer rejects an unapproved new colour', () => {
-  for (const e of exemptions.filter(e => e.glob.startsWith(renderer) && !e.glob.includes('/themes/') && !e.glob.includes('__tests__') && !e.glob.includes('/assets/'))) {
+  for (const e of archivedExemptions.filter(e => e.glob.startsWith(renderer) && !e.glob.includes('/themes/') && !e.glob.includes('__tests__') && !e.glob.includes('/assets/'))) {
     const file = e.glob.replace('*', 'NewConsumer');
     const hits = inspect(file, `const style = { color: '#123abc' };`).filter(f => f.rule === 'bare-color');
     assert.equal(hits[0]?.disposition, 'block', e.glob);
@@ -93,7 +114,8 @@ test('old approved Toast, hljs, composer and asset values are narrow, not file b
     ['components/ui/toast/Toast.tsx', "export const VARIANT_MAP = { info: { color: '#417CCE' } };", 'block'],
     ['styles/globals.css', '[data-theme="cindy-dark"] .hljs-section { color: #2573ec; }', 'allowed'],
     ['styles/globals.css', '.new-control { color: #2573ec; }', 'block'],
-    ['components/new-chat/ChatInput.tsx', "'var(--composer-pill-bg, #FCFCFC)'", 'allowed'],
+    // The composer fallback exemption expired on 2026-09-17 (“集成收口删”) and was not renewed.
+    ['components/new-chat/ChatInput.tsx', "'var(--composer-pill-bg, #FCFCFC)'", 'block'],
     ['components/new-chat/ChatInput.tsx', "'var(--composer-pill-bg, #123abc)'", 'block'],
     ['components/new-chat/ChatInput.tsx', "'var(--other-bg, #FCFCFC)'", 'block'],
     ['components/settings/AgentIslandSection.tsx', "export const MASCOT_PREVIEW_CONFIGS = { cindy: { eyeColor: 'rgb(107 61 50)' } };", 'allowed'],
@@ -428,4 +450,30 @@ test('CI design commands feed the existing verify job and preserve Windows aggre
       assert.equal(run.status===0,result==='success',`${target}=${result}`);
     }
   }
+});
+
+test('new off-scale radii block in Desktop renderer consumers; governed and dynamic values stay report-only', () => {
+  const file = `${renderer}components/Example.tsx`;
+  const blocked = source => inspect(file, source).filter(f => f.rule === 'off-scale-radius');
+  for (const value of ['rounded-md', 'hover:rounded-t-md', 'rounded-2xl', 'rounded-[6px]', 'rounded-tl-[10px]', 'rounded-[0.375rem]']) {
+    const [hit] = blocked(`<div className="${value}" />`);
+    assert.equal(hit?.disposition, 'block', value);
+    assert.match(hit.suggestion, /DESIGN §5/);
+  }
+  assert.equal(blocked("const s = { borderRadius: 10 };")[0]?.disposition, 'block');
+  assert.equal(blocked('.x { border-radius: 6px; }').length, 1);
+  for (const value of ['rounded', 'rounded-sm', 'rounded-lg', 'rounded-xl', 'rounded-full', 'rounded-none', 'rounded-[4px]', 'rounded-[12px]', 'rounded-[var(--r)]']) {
+    assert.deepEqual(blocked(`<div className="${value}" />`), [], value);
+  }
+  // Declared intrinsic content geometry (DESIGN §5) is reported for review, not blocked.
+  const icon = inspect(file, '{/* design: intrinsic-geometry — plugin icon mask */}\n<img className="rounded-[3px]" />')
+    .filter(f => f.rule === 'off-scale-radius');
+  assert.deepEqual(icon.map(f => [f.disposition, f.classification]), [['report', 'declared-intrinsic-geometry']]);
+  const far = inspect(file, '// design: intrinsic-geometry\n\n\n<div className="rounded-[10px]" />').filter(f => f.rule === 'off-scale-radius');
+  assert.equal(far[0].disposition, 'block');
+  // Only added lines: an untouched off-scale radius on another line is existing debt.
+  const result = inspectFile(file, '<div className="rounded-md" />\n<div className="rounded-xl" />', new Set([2]), exemptions, undefined, TODAY);
+  assert.deepEqual(result.filter(f => f.disposition === 'block'), []);
+  // Tests and fixtures are outside the blocking scope.
+  assert.deepEqual(inspect(`${renderer}components/__tests__/x.test.tsx`, '<div className="rounded-md" />').filter(f => f.disposition === 'block'), []);
 });

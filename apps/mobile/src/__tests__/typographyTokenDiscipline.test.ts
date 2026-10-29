@@ -201,6 +201,79 @@ describe('typography token discipline', () => {
     expect(violations).toEqual([]);
   });
 
+  // 五档中性字色(mobile-design-guide.md §3 / §8):主界面文字只用 textPrimary / textSecondary /
+  // textTertiary / textPlaceholder / ctaText;有色文字只用 DESIGN.md §2 / §15.13 已登记的语义 token。
+  // 新增有色文字用途先登记规范,再把 token 加进 SEMANTIC_TEXT_COLORS。
+  const NEUTRAL_TEXT_COLORS = ['textPrimary', 'textSecondary', 'textTertiary', 'textPlaceholder', 'ctaText'];
+  const SEMANTIC_TEXT_COLORS = [
+    'errorText', 'destructive', 'statusError', 'statusDone', 'statusAccent', 'swipeActionText',
+    'chatInlineCodeText', 'botUnread', 'betaChannelBadgeForeground', 'sharedTaskConfirmForeground',
+  ];
+  const isAllowedTextColor = (token: string) =>
+    NEUTRAL_TEXT_COLORS.includes(token) || SEMANTIC_TEXT_COLORS.includes(token)
+    || token.startsWith('login.') || /^syntax[A-Z]/.test(token);
+  // 已知存量(2026-10-30 盘点):只许减少。修掉或经设计裁决登记后,从这里删掉对应条目;
+  // 条目不再出现时测试会提醒删除。键为「文件 样式名或调用 token」,不绑行号。
+  const KNOWN_TEXT_COLOR_DEBT = new Set([
+    'src/components/MobilePrimitives.tsx mainOptionBadgeTextSelected cta', // 与 textPrimary 两模式同值
+    'src/plugins/PluginDetailView.tsx toolsToggleText inputCaret', // 展开/收起用光标蓝,待设计裁决
+    'src/plugins/PluginDetailView.ios.tsx foregroundStyle inputCaret', // 同上(iOS 原生,2 处)
+    'src/session/SharedTaskScreen.tsx dangerText sharedTaskConfirmBackground', // 借用确认钮底色,待设计裁决
+  ]);
+  const KNOWN_PLACEHOLDER_DEBT = new Set([
+    'src/session/ContextSheet.tsx textTertiary', // 占位字用了三级色,待有意可见 PR 改为 textPlaceholder
+  ]);
+  // 样式块算作文字样式:带字号/字重/行高/文字预设,或样式名表明它是文字(只覆盖颜色的选中态等)。
+  const TEXT_STYLE_KEY = /Text|Label|Title|text$|label$|title$/;
+
+  it('keeps text colors on the five neutral tiers or registered semantic text tokens (2026-10-30)', () => {
+    const violations: string[] = [];
+    const seen = new Set<string>();
+    const check = (rel: string, where: string, token: string) => {
+      if (isAllowedTextColor(token)) return;
+      const id = `${rel} ${where} ${token}`;
+      if (KNOWN_TEXT_COLOR_DEBT.has(id)) seen.add(id);
+      else violations.push(`${id} -> use one of ${NEUTRAL_TEXT_COLORS.join(' / ')} or a registered semantic text token`);
+    };
+    for (const rel of files) {
+      const source = readFileSync(join(ROOT, rel), 'utf8');
+      for (const block of source.matchAll(/(?:const\s+)?(\w+)(?::|\s*=)\s*\{([^{}]*)\}/g)) {
+        const [, key, body] = block;
+        const color = body.match(/\bcolor:\s*(?:colors|c|theme\.colors)\.([\w.]+)/)?.[1];
+        if (!color) continue;
+        if (!/fontSize|fontWeight|lineHeight|textStyles\./.test(body) && !TEXT_STYLE_KEY.test(key)) continue;
+        check(rel, key, color);
+      }
+      for (const inline of source.matchAll(/style=\{\{([^{}]*)\}\}/g)) {
+        const color = inline[1].match(/\bcolor:\s*(?:colors|c)\.([\w.]+)/)?.[1];
+        if (color) check(rel, 'inline', color);
+      }
+      for (const call of source.matchAll(/foregroundStyle\((?:colors|c)\.([\w.]+)\)/g)) {
+        check(rel, 'foregroundStyle', call[1]);
+      }
+    }
+    expect(violations).toEqual([]);
+    expect([...KNOWN_TEXT_COLOR_DEBT].filter((id) => !seen.has(id)), '已修复的存量请从 KNOWN_TEXT_COLOR_DEBT 删除').toEqual([]);
+  });
+
+  it('uses textPlaceholder for input placeholders (DESIGN.md §4 Inputs, 2026-10-30)', () => {
+    const violations: string[] = [];
+    const seen = new Set<string>();
+    for (const rel of files) {
+      if (!rel.endsWith('.tsx')) continue;
+      const source = readFileSync(join(ROOT, rel), 'utf8');
+      for (const m of source.matchAll(/placeholderTextColor=\{(?:colors|c)\.([\w.]+)\}/g)) {
+        const token = m[1];
+        if (token === 'textPlaceholder' || token === 'login.controlPlaceholder') continue;
+        const id = `${rel} ${token}`;
+        if (KNOWN_PLACEHOLDER_DEBT.has(id)) seen.add(id);
+        else violations.push(`${id} -> placeholderTextColor must be colors.textPlaceholder`);
+      }
+    }
+    expect(violations).toEqual([]);
+    expect([...KNOWN_PLACEHOLDER_DEBT].filter((id) => !seen.has(id)), '已修复的存量请从 KNOWN_PLACEHOLDER_DEBT 删除').toEqual([]);
+  });
+
   it('keeps textStyles presets composed from the typeScale / lineHeight ladders', () => {
     const sizes = new Set<number>(Object.values(typeScale));
     const heights = new Set<number>(Object.values(lineHeight));

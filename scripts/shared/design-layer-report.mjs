@@ -93,6 +93,29 @@ export function classifyDesignLayer({ member, layer, radius, evidence = false })
     : { classification: 'registered-value-violation', reason: `${member}: this visible layer requires ${expected} at all four corners (DESIGN §5).` };
 }
 
+/** DESIGN §5 corner-radius inventory: 0 / 2px (registered data marks) / 4px
+ * (keycaps; other 4px usages are registered debt) / 8px / 12px / pill. Values
+ * outside that set have no legitimate layer anywhere, so a new one blocks.
+ * Theme-derived named steps resolve with the default --radius (8px): md = 6px,
+ * 2xl = 16px, 3xl = 24px. var()/calc()/% values stay report-only. */
+const GOVERNED_RADIUS_PX = new Set([0, 2, 4, 8, 12, 9999]);
+const NAMED_RADIUS_PX = { md: 6, '2xl': 16, '3xl': 24 };
+export function offScaleRadius(raw) {
+  let px;
+  const tailwind = /^rounded(?:-(?:[trblse]|tl|tr|bl|br|ss|se|es|ee))?(?:-(.+))?$/.exec(raw);
+  if (tailwind) {
+    const value = tailwind[1];
+    if (value === undefined) return null;
+    const arbitrary = /^\[(\d+(?:\.\d+)?)(px|rem)\]$/.exec(value);
+    if (arbitrary) px = Number(arbitrary[1]) * (arbitrary[2] === 'rem' ? 16 : 1);
+    else px = NAMED_RADIUS_PX[value];
+  } else {
+    const css = /^border(?:-radius|Radius)\s*:\s*['"]?(\d+(?:\.\d+)?)(px|rem)?['"]?\s*$/.exec(raw);
+    if (css) px = Number(css[1]) * (css[2] === 'rem' ? 16 : 1);
+  }
+  return px === undefined || GOVERNED_RADIUS_PX.has(px) ? null : px;
+}
+
 /** `className`-bearing attributes are the literal style context this reporter
  * recognises. A palette-shaped token anywhere else in the source — help text,
  * test data, diagnostics prose — is not a class candidate, so reporting it
@@ -127,7 +150,17 @@ function classNameValueSpans(source) {
   return spans;
 }
 
-export function reportDesignLayers(file, source, changed, locate, spacingVariables) {
+/** DESIGN §5 keeps intrinsic content geometry (icon masks, illustration
+ * shapes) outside the radius inventory. Authors declare it in a comment on the
+ * same line or one of the two lines above: `design: intrinsic-geometry — <why>`. */
+const INTRINSIC_GEOMETRY = /design:\s*intrinsic-geometry\b/;
+function declaresIntrinsicGeometry(rawSource, line) {
+  if (!rawSource) return false;
+  const lines = rawSource.split('\n');
+  return lines.slice(Math.max(0, line - 3), line).some(text => INTRINSIC_GEOMETRY.test(text));
+}
+
+export function reportDesignLayers(file, source, changed, locate, spacingVariables, rawSource) {
   const findings = [];
   // Candidate reporting only: a palette utility is not proof of its rendered
   // role. Leave dynamic classes, CSS named values and exemptions to review.
@@ -143,7 +176,7 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
       suggestion: 'Use the matching semantic theme role on a production surface; preserve sanctioned content and legacy overrides. This report does not add blocking scope.',
     });
   }
-  const patterns = /\brounded(?:-(?:\[[^\]\n]+\]|[\w-]+))?|\bborder(?:-radius|Radius)\s*:\s*[^;,}\n]+|\b(?:[pm][xytrblse]?|gap(?:-[xy])?|space-[xy])-\[[^\]\n]+\]/g;
+  const patterns = /\brounded(?:-(?:[trblse]|tl|tr|bl|br|ss|se|es|ee)(?=-))?(?:-(?:\[[^\]\n]+\]|[\w-]+))?|\bborder(?:-radius|Radius)\s*:\s*[^;,}\n]+|\b(?:[pm][xytrblse]?|gap(?:-[xy])?|space-[xy])-\[[^\]\n]+\]/g;
   for (const match of source.matchAll(patterns)) {
     const pos = locate(match.index);
     if (!changed.has(pos.line)) continue;
@@ -163,6 +196,21 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
     const radius = /^rounded-\[([^\]]+)\]$/.exec(match[0])?.[1] ?? match[0].replace(/^rounded-/, '');
     const judgement = isRadius ? classifyDesignLayer({ member, layer, radius, evidence })
       : classifySpacing(match[0], spacingVariables);
+    const offScale = isRadius ? offScaleRadius(match[0].trim()) : null;
+    if (offScale !== null && declaresIntrinsicGeometry(rawSource, pos.line)) {
+      findings.push({ file, ...pos, rule: 'off-scale-radius', value: match[0], disposition: 'report',
+        classification: 'declared-intrinsic-geometry',
+        reason: `Resolves to ${offScale}px; declared intrinsic content geometry (DESIGN §5), so it is outside the radius inventory.`,
+        suggestion: 'Reviewer: confirm the shape belongs to the content itself (icon mask, illustration), not to a control, container or row highlight.' });
+      continue;
+    }
+    if (offScale !== null) {
+      findings.push({ file, ...pos, rule: 'off-scale-radius', value: match[0], disposition: 'block',
+        classification: 'off-scale-radius',
+        reason: `Resolves to ${offScale}px, outside the DESIGN §5 radius inventory (0 / 2 / 4 / 8 / 12px / pill); no layer may use it.`,
+        suggestion: 'Assign the visible layer through DESIGN §5: ordinary control frame → rounded-full, container → rounded-xl (12px), inner control / textarea / row highlight → rounded-lg (8px). Intrinsic content geometry (icon mask, illustration) is outside the inventory: add a `design: intrinsic-geometry — <reason>` comment on this line or just above. A genuinely new shape needs a design ruling first.' });
+      continue;
+    }
     findings.push({ file, ...pos, rule: isRadius ? 'visible-layer-radius' : 'role-spacing',
       value: match[0], disposition: 'report', ...judgement,
       suggestion: isRadius

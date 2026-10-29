@@ -1,0 +1,79 @@
+{
+ "generated": "2026-10-30",
+ "today": "2026-10-30",
+ "range": "last 100 first-parent merges of main fcd464bbd5..727afb1ad6",
+ "scriptHashes": {
+  "scripts/hardcoded-color-audit.mjs": "2fa1cab829a5d158288635f5819114119358d31e6a56673de69e94ab6adc8dca",
+  "scripts/shared/hardcoded-color-match.mjs": "ed31fec9c67f130fd58103b0fb6687fc1dc6dc7ea4e6a33991129281f3b9ae07",
+  "scripts/shared/design-layer-report.mjs": "aa15124406b4feac1b67ce6de97b70f5f0dab33b3423affa6567200730d3d59d",
+  "scripts/hardcoded-color-exemptions.json": "111c4d7b1b53fadcb9faef956f48dc0e2377183290e40f304642c7e1bfa518f0",
+  "packages/design-tokens/src/desktop-bindings.json": "886f68fb990f7116f06b82d4e2dedb40210cbea9ec70ebe336657c137eb50fb4",
+  "packages/design-tokens/src/semantic/foundations.json": "61651580afaff343003683fee9e827e416504e3656b04fa263fef35608f70a70"
+ },
+ "recent": {
+  "merges": 100,
+  "withOffScaleRadius": 0,
+  "colorBlocks": 0,
+  "rows": []
+ },
+ "positiveControl": [
+  {
+   "sha": "9245acbbe4",
+   "offScaleRadius": [
+    {
+     "file": "apps/desktop/src/renderer/features/right-sidebar/plugins/plugin-task/index.tsx",
+     "line": 47,
+     "value": "rounded-[3px]",
+     "disposition": "block"
+    }
+   ],
+   "colorBlocks": 0
+  },
+  {
+   "sha": "256940f00b",
+   "offScaleRadius": [
+    {
+     "file": "apps/desktop/src/renderer/components/chat/GhostToolCard.tsx",
+     "line": 719,
+     "value": "rounded-[10px]",
+     "disposition": "block"
+    }
+   ],
+   "colorBlocks": 0
+  },
+  {
+   "sha": "7b8e3e4a71",
+   "offScaleRadius": [
+    {
+     "file": "apps/desktop/src/renderer/components/settings/AppearanceSection.tsx",
+     "line": 151,
+     "value": "rounded-[3px]",
+     "disposition": "block"
+    }
+   ],
+   "colorBlocks": 0
+  },
+  {
+   "sha": "c488f28e36",
+   "offScaleRadius": [],
+   "colorBlocks": 0
+  },
+  {
+   "sha": "3f4ec18ec5",
+   "offScaleRadius": [
+    {
+     "file": "apps/desktop/src/renderer/features/input-handoff/InputHandoffDeviceCode.tsx",
+     "line": 21,
+     "value": "rounded-[10px]",
+     "disposition": "block"
+    }
+   ],
+   "colorBlocks": 0
+  },
+  {
+   "sha": "4cd3a4c8b9",
+   "offScaleRadius": [],
+   "colorBlocks": 0
+  }
+ ]
+}
