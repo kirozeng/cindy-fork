@@ -514,3 +514,30 @@ test('an intrinsic-geometry declaration must be a comment that gives a reason', 
   assert.deepEqual(dispositions('// design: intrinsic-geometry —\n<img className="rounded-[3px]" />'), ['block']);
   assert.deepEqual(dispositions("const note = 'design: intrinsic-geometry — x';\n<img className=\"rounded-[3px]\" />"), ['block']);
 });
+
+test('multiline shorthands, multiline prose strings and quoted markers are handled lexically', () => {
+  const file = `${renderer}components/Example.tsx`;
+  const css = `${renderer}styles/x.css`;
+  const radius = (source, at = file) => inspect(at, source).filter(f => f.rule === 'off-scale-radius').map(f => f.disposition);
+  // Valid CSS may split a shorthand across lines: every value counts.
+  assert.deepEqual(radius('.x {\n  border-radius: 8px\n    10px;\n}', css), ['block']);
+  assert.deepEqual(radius('.x {\n  border-radius: 8px\n    12px;\n}', css), []);
+  // A multiline template that merely documents a radius is prose, not a style object.
+  assert.deepEqual(radius('const help = `CSS example:\nborderRadius: 6\n`;'), ['report']);
+  assert.deepEqual(radius('const help = `a ${x}\nmore\nborderRadius: 6`;'), ['report']);
+  assert.deepEqual(radius('const s = {\n  borderRadius: 6,\n};'), ['block']);
+  assert.deepEqual(radius('const t = `${a}`;\nconst s = { borderRadius: 6 };'), ['block']);
+  // A marker that only appears inside a string literal declares nothing.
+  assert.deepEqual(radius("const note = '// design: intrinsic-geometry — example';\n<i className=\"rounded-[3px]\" />"), ['block']);
+  assert.deepEqual(radius('const note = "/* design: intrinsic-geometry — x */";\n<i className="rounded-[3px]" />'), ['block']);
+  assert.deepEqual(radius('// design: intrinsic-geometry — plugin icon mask\n<i className="rounded-[3px]" />'), ['report']);
+});
+
+test('reviewDate must be a real calendar day', () => {
+  const entry = { glob: `${renderer}x.css`, reason: 'fixture', owner: 'test', matches: [{ value: '#123456', before: 'color:\\s*' }] };
+  for (const reviewDate of ['9999-99-99', '2026-02-30', '2026-13-01', '2026-1-1', 'soon']) {
+    assert.throws(() => validateExemptions([{ ...entry, reviewDate }]), /Invalid reviewDate/, reviewDate);
+  }
+  assert.doesNotThrow(() => validateExemptions([{ ...entry, reviewDate: '2028-02-29' }]));
+  assert.throws(() => validateExemptions([{ ...entry, reviewDate: '2027-02-29' }]), /Invalid reviewDate/);
+});

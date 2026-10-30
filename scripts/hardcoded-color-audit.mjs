@@ -47,9 +47,16 @@ export function validateExemptions(data) {
       }
       new RegExp(rule.before);
     }
-    if (entry.matches !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(entry.reviewDate)) throw new Error(`Invalid reviewDate: ${entry.glob}`);
+    if (entry.matches !== undefined && !isCalendarDate(entry.reviewDate)) throw new Error(`Invalid reviewDate: ${entry.glob}`);
   }
   return data;
+}
+
+/** YYYY-MM-DD that is a real calendar day (9999-99-99 or 2026-02-30 would otherwise never expire). */
+export function isCalendarDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 /** UTC calendar date; an exemption is valid through its reviewDate. */

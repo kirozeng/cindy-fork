@@ -82,13 +82,15 @@ const balancedFrom = (src: string, start: number) => {
 const enclosingTag = (src: string, index: number) =>
   [...src.slice(Math.max(0, index - 1500), index).matchAll(/<([A-Z][\w.]*)\b/g)].pop()?.[1];
 const isTextTag = (tag?: string) => !!tag && /(?:^|\.)(?:Text|AppText|TextInput|AppTextInput)$/.test(tag);
+const SWIFTUI_TEXT_CONTROLS = new Set(['Text', 'Button', 'TextField', 'SecureField', 'TextEditor', 'Label']);
 const TEXT_STYLE_PROPS = /fontSize|fontWeight|lineHeight|textStyles\./;
 
 /** 被 `<Text style={styles.x}>` / `style={[styles.a, styles.b]}` 这类写法实际用在文字组件上的样式名。 */
 function namedStylesUsedOnText(source: string): Set<string> {
   const used = new Set<string>();
-  for (const attr of source.matchAll(/\bstyle=\{/g)) {
-    if (!isTextTag(enclosingTag(source, attr.index!))) continue;
+  // textStyle={…} 是 NativeText 等文字组件的样式属性,与 style 同等对待,不要求标签名。
+  for (const attr of source.matchAll(/\b(style|textStyle)=\{/g)) {
+    if (attr[1] === 'style' && !isTextTag(enclosingTag(source, attr.index!))) continue;
     for (const ref of balancedFrom(source, attr.index! + attr[0].length).matchAll(/\b(?:styles|s)\.(\w+)/g)) used.add(ref[1]);
   }
   return used;
@@ -104,14 +106,14 @@ function scanTextColors(source: string): Array<{ where: string; token: string }>
     if (!TEXT_STYLE_PROPS.test(body) && !/Text$|Label$|Title$|^text|^label|^title/i.test(key) && !onText.has(key)) continue;
     for (const c of body.matchAll(/\bcolor:\s*([^,}]+)/g)) for (const token of tokensIn(c[1])) found.push({ where: key, token });
   }
-  for (const attr of source.matchAll(/\bstyle=\{/g)) {
+  for (const attr of source.matchAll(/\b(?:style|textStyle)=\{/g)) {
     const span = balancedFrom(source, attr.index! + attr[0].length);
     for (const c of span.matchAll(/\bcolor:\s*([^,}]+)/g)) for (const token of tokensIn(c[1])) found.push({ where: 'inline', token });
   }
-  // SwiftUI 的 foregroundStyle 也给形状、渐变上色;只统计 Text / Button 上的文字色。
+  // SwiftUI 的 foregroundStyle 也给形状、渐变上色;只统计带文字的控件(Text / Button / TextField 等)。
   for (const call of source.matchAll(/foregroundStyle\(([^)]*)\)/g)) {
     const owner = enclosingTag(source, call.index!);
-    if (owner !== 'Text' && owner !== 'Button') continue;
+    if (!owner || !SWIFTUI_TEXT_CONTROLS.has(owner)) continue;
     for (const token of tokensIn(call[1])) found.push({ where: 'foregroundStyle', token });
   }
   return found;
@@ -141,6 +143,9 @@ describe('text color discipline', () => {
     expect(tokens('const x = { fontSize: typeScale.body, color: c.inputCaret }')).toEqual(['inputCaret']);
     expect(tokens('<Text modifiers={[foregroundStyle(ok ? colors.textSecondary : colors.cta)]} />')).toEqual(['textSecondary', 'cta']);
     expect(tokens('<Circle modifiers={[foregroundStyle(colors.statusReady)]} />')).toEqual([]);
+    expect(tokens('<TextField modifiers={[foregroundStyle(colors.border)]} />')).toEqual(['border']);
+    expect(tokens('<NativeText textStyle={{ color: colors.border }} />')).toEqual(['border']);
+    expect(scanTextColors('<NativeText textStyle={styles.row}>x</NativeText>\nconst styles = { row: { color: c.border } }').map((f) => f.token)).toEqual(['border']);
     // 只覆盖 color、名字也不像文字的命名样式:被 <Text> 引用就算,不被引用(如 View 背景)不算。
     expect(scanTextColors('<Text style={styles.danger}>x</Text>\nconst styles = { danger: { color: c.border } }').map((f) => f.token)).toEqual(['border']);
     expect(scanTextColors('<Text style={[styles.base, styles.danger]}>x</Text>\nconst styles = { danger: { color: c.border } }').map((f) => f.token)).toEqual(['border']);

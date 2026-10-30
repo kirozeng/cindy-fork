@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { maskColorComments } from './hardcoded-color-match.mjs';
 
 // Read the generation contract, not a second hand-maintained token allowlist.
 // readSpacingVariables(root) is fresh per call so audit({root}) always honours
@@ -116,7 +117,7 @@ export function offScaleRadius(raw) {
     if (!css) return null;
     const values = css[1].replace(/!\s*important/i, '').split(/[\s/]+/).filter(Boolean);
     for (const value of values) {
-      const literal = /^(\d*\.?\d+)(px|rem)?$/i.exec(value);
+      const literal = /^(\d*\.?\d+)(px|rem)?$/i.exec(value.replace(/^['"`]+|['"`]+$/g, ''));
       if (!literal) continue; // var() / calc() / % / keywords stay report-only
       const resolved = Number(literal[1]) * (literal[2]?.toLowerCase() === 'rem' ? 16 : 1);
       if (!GOVERNED_RADIUS_PX.has(resolved)) return resolved;
@@ -192,26 +193,48 @@ function insideClassListLiteral(source, index) {
   }
   return false;
 }
-/** True when the line's quote state at index is inside a string literal (prose, help text). */
-function insideStringOnLine(source, index) {
-  const lineStart = source.lastIndexOf('\n', index - 1) + 1;
-  let quote = '';
-  for (let i = lineStart; i < index; i++) {
-    const char = source[i];
-    if (quote) { if (char === '\\') i++; else if (char === quote) quote = ''; continue; }
-    if (char === '"' || char === "'" || char === '`') quote = char;
+/** True when `index` sits inside a string literal or template text (prose, help text, embedded CSS),
+ * tracked lexically from the start of the file: ' and " end at the line break, template literals span
+ * lines, `${ … }` is code again, comments are skipped. */
+function insideStringLiteral(source, index) {
+  let mode = 'code';
+  const exprDepth = [];
+  for (let i = 0; i < index; i++) {
+    const char = source[i], next = source[i + 1];
+    if (mode === 'code') {
+      if (char === '/' && next === '/') mode = 'line';
+      else if (char === '/' && next === '*') { mode = 'block'; i++; }
+      else if (char === "'") mode = 'sq';
+      else if (char === '"') mode = 'dq';
+      else if (char === '`') mode = 'tpl';
+      else if (char === '{' && exprDepth.length) exprDepth[exprDepth.length - 1]++;
+      else if (char === '}' && exprDepth.length) { if (exprDepth[exprDepth.length - 1] === 0) { exprDepth.pop(); mode = 'tpl'; } else exprDepth[exprDepth.length - 1]--; }
+    } else if (mode === 'sq' || mode === 'dq') {
+      if (char === '\\') i++;
+      else if (char === '\n' || char === (mode === 'sq' ? "'" : '"')) mode = 'code';
+    } else if (mode === 'tpl') {
+      if (char === '\\') i++;
+      else if (char === '`') mode = 'code';
+      else if (char === '$' && next === '{') { exprDepth.push(0); mode = 'code'; i++; }
+    } else if (mode === 'line') { if (char === '\n') mode = 'code'; }
+    else if (mode === 'block' && char === '*' && next === '/') { mode = 'code'; i++; }
   }
-  return quote !== '';
+  return mode === 'sq' || mode === 'dq' || mode === 'tpl';
 }
 
 /** DESIGN §5 keeps intrinsic content geometry (icon masks, illustration
  * shapes) outside the radius inventory. Authors declare it in a comment on the
  * same line or one of the two lines above: `design: intrinsic-geometry — <why>` (the reason is required). */
 // Must be a real comment (// … , /* … */, <!-- … -->) carrying a non-empty reason after a dash or colon.
-const INTRINSIC_GEOMETRY = /(?:\/\/|\/\*|<!--)[^\n]*?design:\s*intrinsic-geometry\s*(?:[—–:-]+)\s*[^\s*/>-]/;
+const INTRINSIC_GEOMETRY = /design:\s*intrinsic-geometry\s*(?:[—–:-]+)\s*[^\s*/>-]/;
 function declaresIntrinsicGeometry(rawSource, line) {
   if (!rawSource) return false;
-  const lines = rawSource.split('\n');
+  // Keep only real comment text (strings keep their `//` but are not comments): a marker quoted
+  // inside a string literal never declares anything.
+  const masked = maskColorComments(rawSource);
+  let commentsOnly = '';
+  for (let i = 0; i < rawSource.length; i++) commentsOnly += rawSource[i] !== masked[i] ? rawSource[i] : (rawSource[i] === '\n' ? '\n' : ' ');
+  const lines = commentsOnly.split('\n');
   return lines.slice(Math.max(0, line - 3), line).some(text => INTRINSIC_GEOMETRY.test(text));
 }
 
@@ -232,7 +255,7 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
       suggestion: 'Use the matching semantic theme role on a production surface; preserve sanctioned content and legacy overrides. This report does not add blocking scope.',
     });
   }
-  const patterns = /\brounded(?:-(?:[trblse]|tl|tr|bl|br|ss|se|es|ee)(?=-))?(?:-(?:\[[^\]\n]+\]|[\w-]+))?|\bborder(?:-radius|Radius)\s*:\s*[^;,}\n]+|\b(?:[pm][xytrblse]?|gap(?:-[xy])?|space-[xy])-\[[^\]\n]+\]/g;
+  const patterns = /\brounded(?:-(?:[trblse]|tl|tr|bl|br|ss|se|es|ee)(?=-))?(?:-(?:\[[^\]\n]+\]|[\w-]+))?|\bborder(?:-radius|Radius)\s*:\s*[^;,}]+|\b(?:[pm][xytrblse]?|gap(?:-[xy])?|space-[xy])-\[[^\]\n]+\]/g;
   for (const match of source.matchAll(patterns)) {
     const pos = locate(match.index);
     if (!changed.has(pos.line)) continue;
@@ -267,7 +290,7 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
     const inSpan = spans => spans.some(([a, b]) => match.index >= a && match.index < b);
     const styleContext = /^rounded/.test(raw)
       ? inSpan(classSpans) || inSpan(helperSpans) || insideClassListLiteral(source, match.index)
-      : /^borderRadius/.test(raw) ? !insideStringOnLine(source, match.index)
+      : /^borderRadius/.test(raw) ? !insideStringLiteral(source, match.index)
         : /\.(?:css|scss|less|html)$/.test(file);
     if (offScale !== null && !styleContext) {
       findings.push({ file, ...pos, rule: 'off-scale-radius', value: match[0], disposition: 'report',
