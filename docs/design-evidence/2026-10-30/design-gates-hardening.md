@@ -8,10 +8,11 @@
 
 圆角阻断只在确认的样式语境里生效（class 属性、`cn()` 等调用、纯类名字符串、样式对象 `borderRadius:`、CSS 文件）；写在普通文案里的 `rounded-md` 只报告。
 
-**近期误报率**：main 最近 100 个 first-parent 合并（`fcd464bbd5..727afb1ad6`），每个按 `<merge>^1..<merge>` 回放：
+**近期命中**：main 最近 100 个 first-parent 合并（`b0c217c98b..d96b7f8cba`），每个按 `<merge>^1..<merge>` 回放：
 
-- 规范外圆角 block：0 个合并（另用 `git diff` 独立统计新增行，同样为 0）。
+- 规范外圆角 block：1 个合并，命中 `AutomationSessionGroupItem.tsx:779` 的 `rounded-md`（#7889 `teammate-routine-folder`，合并提交 `cfd02a20b4`）。这是 20px 图标按钮的真实 6px 圆角，应为 `rounded-full` 或 8px，属于真违规，不是误报；它在本 PR 创建之后才合进 main，是 CI 在旧基线上第一次拦下它的原因。
 - 颜色 block：0（豁免过期没有拦下任何近期改动）。
+- 其余 99 个合并无命中（另用 `git diff` 独立统计新增行，同样没有遗漏）。
 
 **正向对照**：用 `git log -G` 找到历史上新增过规范外圆角的 6 个合并，新规则在其中 4 个各拦下 1 处，另外 2 个只是删除了这类写法，没有命中：
 
