@@ -461,7 +461,7 @@ test('new off-scale radii block in Desktop renderer consumers; governed and dyna
     assert.match(hit.suggestion, /DESIGN §5/);
   }
   assert.equal(blocked("const s = { borderRadius: 10 };")[0]?.disposition, 'block');
-  assert.equal(blocked('.x { border-radius: 6px; }').length, 1);
+  assert.equal(inspect(`${renderer}styles/x.css`, '.x { border-radius: 6px; }').filter(f => f.rule === 'off-scale-radius' && f.disposition === 'block').length, 1);
   for (const value of ['rounded', 'rounded-sm', 'rounded-lg', 'rounded-xl', 'rounded-full', 'rounded-none', 'rounded-[4px]', 'rounded-[12px]', 'rounded-[var(--r)]']) {
     assert.deepEqual(blocked(`<div className="${value}" />`), [], value);
   }
@@ -480,15 +480,29 @@ test('new off-scale radii block in Desktop renderer consumers; governed and dyna
 
 test('shorthand, !important and trailing-declaration radii are parsed value by value', () => {
   const file = `${renderer}components/Example.tsx`;
-  const blocked = source => inspect(file, source).filter(f => f.rule === 'off-scale-radius' && f.disposition === 'block');
+  const css = `${renderer}styles/x.css`;
+  const blocked = (source, at = css) => inspect(at, source).filter(f => f.rule === 'off-scale-radius' && f.disposition === 'block');
   assert.equal(blocked('.x { border-radius: 6px !important; }').length, 1);
   assert.equal(blocked('.x { border-radius: 8px 10px; }').length, 1);
   assert.equal(blocked('.x { border-radius: 12px / 6px }').length, 1);
-  assert.equal(blocked("const s = { borderRadius: '6px' };").length, 1);
+  assert.equal(blocked('.x { border-radius: .375rem }').length, 1);
+  assert.equal(blocked('.x { border-radius: 6PX }').length, 1);
+  assert.equal(blocked('<i className="rounded-[.375rem]" />', file).length, 1);
+  assert.equal(blocked('<i className="rounded-[0.375REM]" />', file).length, 1);
+  assert.equal(blocked("const s = { borderRadius: '6px' };", file).length, 1);
   for (const ok of ['.x { border-radius: 8px 12px !important; }', '.x { border-radius: 0 8px; }', '.x { border-radius: var(--r) 6px; }'.replace('6px', 'var(--s)'),
     '.x { border-radius: 50%; }', '.x { border-radius: calc(var(--r) - 2px); }']) {
     assert.deepEqual(blocked(ok), [], ok);
   }
+});
+
+test('a radius only blocks in a confirmed style context; prose that mentions one stays a report', () => {
+  const file = `${renderer}components/Example.tsx`;
+  const dispositions = source => inspect(file, source).filter(f => f.rule === 'off-scale-radius').map(f => f.disposition);
+  for (const source of ['<div className="rounded-md" />', 'const c = cn("flex", on && "rounded-md");', 'const A = "flex items-center rounded-md";',
+    'const s = { borderRadius: 6 };']) assert.deepEqual(dispositions(source), ['block'], source);
+  for (const source of ['const help = "Use rounded-md";', "const note = 'CSS example: border-radius: 6px';", 'const h = "borderRadius: 6 is not allowed";',
+    'const css = `.x{border-radius:6px}`;']) assert.deepEqual(dispositions(source), ['report'], source);
 });
 
 test('an intrinsic-geometry declaration must be a comment that gives a reason', () => {

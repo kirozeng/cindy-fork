@@ -4,7 +4,9 @@
 
 ## 1. 颜色审计：豁免过期与规范外圆角
 
-脚本 hash 与逐条结果见 [design-gates-replay.json](./design-gates-replay.json)（`scripts/hardcoded-color-audit.mjs` `2fa1cab8…`，`scripts/shared/design-layer-report.mjs` `aa151244…`，`scripts/hardcoded-color-exemptions.json` `111c4d7b…`）。
+脚本 hash 与逐条结果见 [design-gates-replay.json](./design-gates-replay.json)：其中 `scriptHashes` 是回放时 `hardcoded-color-audit.mjs`、`design-layer-report.mjs`、豁免表等的 SHA-256，文中计数只绑定这份 JSON，文档里不再重复抄写 hash。
+
+圆角阻断只在确认的样式语境里生效（class 属性、`cn()` 等调用、纯类名字符串、样式对象 `borderRadius:`、CSS 文件）；写在普通文案里的 `rounded-md` 只报告。
 
 **近期误报率**：main 最近 100 个 first-parent 合并（`fcd464bbd5..727afb1ad6`），每个按 `<merge>^1..<merge>` 回放：
 
@@ -37,4 +39,4 @@
 
 ## 3. Mobile 字色测试
 
-`typographyTokenDiscipline.test.ts` 新增的两条测试在 main 上的存量只有已登记名单里的 7 处（按次数登记：徽标 `cta` 1、插件详情光标蓝 3、远程桌面光标蓝 1、共享任务危险文字 1、占位字 1），见测试内 `KNOWN_TEXT_COLOR_DEBT` / `KNOWN_PLACEHOLDER_DEBT`。扫描覆盖命名样式块、内联 `style` 的对象 / 数组 / 条件分支、占位字的条件与 `theme.colors.*` 写法，SwiftUI `foregroundStyle` 只统计 `Text` / `Button` 上的调用（形状与渐变不算文字）；`colors.login.*` 只在登录画布文件放行。存量名单按次数登记：次数增加会报错，修掉后实际次数低于登记值会提示收紧。扫描器本身有单测。
+`textColorDiscipline.test.ts`（guard 层）的两条全仓扫描在 main 上的存量只有已登记名单里的 7 处（按次数登记：徽标 `cta` 1、插件详情光标蓝 3、远程桌面光标蓝 1、共享任务危险文字 1、占位字 1），见测试内 `KNOWN_TEXT_COLOR_DEBT` / `KNOWN_PLACEHOLDER_DEBT`。扫描覆盖命名样式块、内联 `style` 的对象 / 数组 / 条件分支、占位字的条件与 `theme.colors.*` 写法，SwiftUI `foregroundStyle` 只统计 `Text` / `Button` 上的调用（形状与渐变不算文字）；`colors.login.*` 只在登录画布文件放行。存量名单按次数登记：次数增加会报错，修掉后实际次数低于登记值会提示收紧。扫描器本身有单测。

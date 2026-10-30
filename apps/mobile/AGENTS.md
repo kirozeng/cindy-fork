@@ -14,5 +14,5 @@
 - 新增或修改 Mobile 界面上的文字前，必须先查
   [Mobile 设计指南](docs/mobile-design-guide.md) §3「文字规范速查」：先定角色，再整行照抄字号、
   行高、字重、字色；五档中性字色（含占位字只用 `textPlaceholder`）、浅色字不配粗字重、
-  必须配行高由 `typographyTokenDiscipline.test.ts` 守护，11 档字号由 `themeTokens.test.ts`
+  必须配行高由 `typographyTokenDiscipline.test.ts` / `textColorDiscipline.test.ts` 守护，11 档字号由 `themeTokens.test.ts`
   守护，角色是否选对靠 review。

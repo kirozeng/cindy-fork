@@ -106,8 +106,8 @@ export function offScaleRadius(raw) {
   if (tailwind) {
     const value = tailwind[1];
     if (value === undefined) return null;
-    const arbitrary = /^\[(\d+(?:\.\d+)?)(px|rem)\]$/.exec(value);
-    if (arbitrary) px = Number(arbitrary[1]) * (arbitrary[2] === 'rem' ? 16 : 1);
+    const arbitrary = /^\[(\d*\.?\d+)(px|rem)\]$/i.exec(value);
+    if (arbitrary) px = Number(arbitrary[1]) * (arbitrary[2].toLowerCase() === 'rem' ? 16 : 1);
     else px = NAMED_RADIUS_PX[value];
   } else {
     // Literal CSS / style-object radius: every value in a shorthand (6px 10px, 8px / 12px)
@@ -116,9 +116,9 @@ export function offScaleRadius(raw) {
     if (!css) return null;
     const values = css[1].replace(/!\s*important/i, '').split(/[\s/]+/).filter(Boolean);
     for (const value of values) {
-      const literal = /^(\d+(?:\.\d+)?)(px|rem)?$/.exec(value);
+      const literal = /^(\d*\.?\d+)(px|rem)?$/i.exec(value);
       if (!literal) continue; // var() / calc() / % / keywords stay report-only
-      const resolved = Number(literal[1]) * (literal[2] === 'rem' ? 16 : 1);
+      const resolved = Number(literal[1]) * (literal[2]?.toLowerCase() === 'rem' ? 16 : 1);
       if (!GOVERNED_RADIUS_PX.has(resolved)) return resolved;
     }
     return null;
@@ -160,6 +160,50 @@ function classNameValueSpans(source) {
   return spans;
 }
 
+/** Spans of `cn(` / `clsx(` / `cva(` / `twMerge(` / `classNames(` argument lists: class strings
+ * assembled outside a className attribute are still a style context. */
+function classHelperSpans(source) {
+  const spans = [];
+  for (const match of source.matchAll(/(?<![\w$.])(?:cn|clsx|cva|twMerge|classNames)\s*\(/g)) {
+    const start = match.index + match[0].length;
+    let depth = 1, quote = '';
+    for (let i = start; i < source.length; i++) {
+      const char = source[i];
+      if (quote) { if (char === '\\') i++; else if (char === quote) quote = ''; continue; }
+      if (char === '"' || char === "'" || char === '`') { quote = char; continue; }
+      if (char === '(') depth++;
+      else if (char === ')' && --depth === 0) { spans.push([start, i]); break; }
+    }
+  }
+  return spans;
+}
+
+const UTILITY_WORDS = new Set(['flex', 'grid', 'block', 'inline', 'hidden', 'relative', 'absolute', 'fixed', 'sticky', 'border',
+  'truncate', 'transition', 'shadow', 'underline', 'static', 'contents', 'container', 'rounded', 'italic', 'uppercase']);
+/** A string literal on this line made only of class-like tokens (a bare class list). */
+function insideClassListLiteral(source, index) {
+  const lineStart = source.lastIndexOf('\n', index - 1) + 1;
+  const lineEnd = source.indexOf('\n', index); const end = lineEnd < 0 ? source.length : lineEnd;
+  const line = source.slice(lineStart, end), at = index - lineStart;
+  for (const m of line.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)) {
+    if (at < m.index || at > m.index + m[0].length) continue;
+    const tokens = m[2].split(/\s+/).filter(Boolean);
+    return tokens.length > 0 && tokens.every(t => /^[\w!:[\]/.%()#&>*~@=,+-]+$/.test(t) && (/[-:[]/.test(t) || UTILITY_WORDS.has(t)));
+  }
+  return false;
+}
+/** True when the line's quote state at index is inside a string literal (prose, help text). */
+function insideStringOnLine(source, index) {
+  const lineStart = source.lastIndexOf('\n', index - 1) + 1;
+  let quote = '';
+  for (let i = lineStart; i < index; i++) {
+    const char = source[i];
+    if (quote) { if (char === '\\') i++; else if (char === quote) quote = ''; continue; }
+    if (char === '"' || char === "'" || char === '`') quote = char;
+  }
+  return quote !== '';
+}
+
 /** DESIGN §5 keeps intrinsic content geometry (icon masks, illustration
  * shapes) outside the radius inventory. Authors declare it in a comment on the
  * same line or one of the two lines above: `design: intrinsic-geometry — <why>` (the reason is required). */
@@ -177,6 +221,7 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
   // role. Leave dynamic classes, CSS named values and exemptions to review.
   const paletteUtility = /(?<![\w-])(?:bg|text|border|ring|fill|stroke|outline|decoration|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|[1-9]00|950)(?:\/(?:\d+|\[[^\]\n]+\]))?(?![\w-])/g;
   const classSpans = classNameValueSpans(source);
+  const helperSpans = classHelperSpans(source);
   for (const match of source.matchAll(paletteUtility)) {
     if (!classSpans.some(([start, end]) => match.index >= start && match.index < end)) continue;
     const pos = locate(match.index);
@@ -213,6 +258,22 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
         classification: 'declared-intrinsic-geometry',
         reason: `Resolves to ${offScale}px; declared intrinsic content geometry (DESIGN §5), so it is outside the radius inventory.`,
         suggestion: 'Reviewer: confirm the shape belongs to the content itself (icon mask, illustration), not to a control, container or row highlight.' });
+      continue;
+    }
+    // Block only where the value really styles something: a class attribute / cn() argument / bare class
+    // list, a style-object `borderRadius:` outside any string, or a CSS-file declaration. Prose and
+    // diagnostics that merely mention a radius stay a report.
+    const raw = match[0].trim();
+    const inSpan = spans => spans.some(([a, b]) => match.index >= a && match.index < b);
+    const styleContext = /^rounded/.test(raw)
+      ? inSpan(classSpans) || inSpan(helperSpans) || insideClassListLiteral(source, match.index)
+      : /^borderRadius/.test(raw) ? !insideStringOnLine(source, match.index)
+        : /\.(?:css|scss|less|html)$/.test(file);
+    if (offScale !== null && !styleContext) {
+      findings.push({ file, ...pos, rule: 'off-scale-radius', value: match[0], disposition: 'report',
+        classification: 'off-scale-radius-unconfirmed-context',
+        reason: `Resolves to ${offScale}px, outside the DESIGN §5 radius inventory, but it is not in a confirmed style context (class attribute, cn() call, class list, style object or CSS file).`,
+        suggestion: 'If this styles a visible layer, use a governed radius (rounded-full / rounded-xl / rounded-lg); if it is prose or an embedded CSS string, ignore this report.' });
       continue;
     }
     if (offScale !== null) {
