@@ -62,3 +62,18 @@ test("检查名称、workflow 与脚本入口一致（design-governance.md §8.2
 	assert.match(workflow, /^\s+run: node scripts\/check-pr-design-basis\.mjs$/m);
 	assert.ok(existsSync(new URL("../check-pr-design-basis.mjs", import.meta.url)));
 });
+
+test("近似文件名（带后缀、前缀或不同扩展名）不算设计依据", () => {
+	for (const basis of [
+		"mobile-design-guide-draft.md",
+		"my-ios-native-design.md",
+		"myios-native-design-copy.md",
+		"design-governance-notes.md",
+		"not-design-governance-anymore.txt",
+		"token-decision-table2.md",
+		"DESIGN.md.bak",
+	]) assert.equal(passes(basis), false, basis);
+	for (const basis of ["mobile-design-guide", "mobile-design-guide.md §3", "[指南](apps/mobile/docs/mobile-design-guide.md)", "见 design-governance §8；DESIGN.md§5"]) {
+		assert.equal(passes(basis), true, basis);
+	}
+});

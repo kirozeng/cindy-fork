@@ -110,8 +110,18 @@ export function offScaleRadius(raw) {
     if (arbitrary) px = Number(arbitrary[1]) * (arbitrary[2] === 'rem' ? 16 : 1);
     else px = NAMED_RADIUS_PX[value];
   } else {
-    const css = /^border(?:-radius|Radius)\s*:\s*['"]?(\d+(?:\.\d+)?)(px|rem)?['"]?\s*$/.exec(raw);
-    if (css) px = Number(css[1]) * (css[2] === 'rem' ? 16 : 1);
+    // Literal CSS / style-object radius: every value in a shorthand (6px 10px, 8px / 12px)
+    // must be on the inventory; trailing !important or a quote is not part of the value.
+    const css = /^border(?:-radius|Radius)\s*:\s*['"]?([^'"]*?)['"]?\s*$/.exec(raw);
+    if (!css) return null;
+    const values = css[1].replace(/!\s*important/i, '').split(/[\s/]+/).filter(Boolean);
+    for (const value of values) {
+      const literal = /^(\d+(?:\.\d+)?)(px|rem)?$/.exec(value);
+      if (!literal) continue; // var() / calc() / % / keywords stay report-only
+      const resolved = Number(literal[1]) * (literal[2] === 'rem' ? 16 : 1);
+      if (!GOVERNED_RADIUS_PX.has(resolved)) return resolved;
+    }
+    return null;
   }
   return px === undefined || GOVERNED_RADIUS_PX.has(px) ? null : px;
 }
@@ -152,8 +162,9 @@ function classNameValueSpans(source) {
 
 /** DESIGN §5 keeps intrinsic content geometry (icon masks, illustration
  * shapes) outside the radius inventory. Authors declare it in a comment on the
- * same line or one of the two lines above: `design: intrinsic-geometry — <why>`. */
-const INTRINSIC_GEOMETRY = /design:\s*intrinsic-geometry\b/;
+ * same line or one of the two lines above: `design: intrinsic-geometry — <why>` (the reason is required). */
+// Must be a real comment (// … , /* … */, <!-- … -->) carrying a non-empty reason after a dash or colon.
+const INTRINSIC_GEOMETRY = /(?:\/\/|\/\*|<!--)[^\n]*?design:\s*intrinsic-geometry\s*(?:[—–:-]+)\s*[^\s*/>-]/;
 function declaresIntrinsicGeometry(rawSource, line) {
   if (!rawSource) return false;
   const lines = rawSource.split('\n');

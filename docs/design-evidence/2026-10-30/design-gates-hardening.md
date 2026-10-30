@@ -37,4 +37,4 @@
 
 ## 3. Mobile 字色测试
 
-`typographyTokenDiscipline.test.ts` 新增的两条测试在 main 上的存量只有已登记名单里的 5 处，见测试内 `KNOWN_TEXT_COLOR_DEBT` / `KNOWN_PLACEHOLDER_DEBT`。反例验证：把一处文字色改为 `colors.border` 会报出文件、样式名与建议；修好存量但没删名单条目，会提示删除。
+`typographyTokenDiscipline.test.ts` 新增的两条测试在 main 上的存量只有已登记名单里的 7 处（按次数登记：徽标 `cta` 1、插件详情光标蓝 3、远程桌面光标蓝 1、共享任务危险文字 1、占位字 1），见测试内 `KNOWN_TEXT_COLOR_DEBT` / `KNOWN_PLACEHOLDER_DEBT`。扫描覆盖命名样式块、内联 `style` 的对象 / 数组 / 条件分支、占位字的条件与 `theme.colors.*` 写法，SwiftUI `foregroundStyle` 只统计 `Text` / `Button` 上的调用（形状与渐变不算文字）；`colors.login.*` 只在登录画布文件放行。存量名单按次数登记：次数增加会报错，修掉后实际次数低于登记值会提示收紧。扫描器本身有单测。

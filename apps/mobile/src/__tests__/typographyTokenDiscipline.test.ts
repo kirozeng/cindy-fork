@@ -208,70 +208,115 @@ describe('typography token discipline', () => {
   const SEMANTIC_TEXT_COLORS = [
     'errorText', 'destructive', 'statusError', 'statusDone', 'statusAccent', 'swipeActionText',
     'chatInlineCodeText', 'botUnread', 'betaChannelBadgeForeground', 'sharedTaskConfirmForeground',
+    'taskTagWhite', 'taskTagWhiteCheck', // 任务标签底色上的勾与字
   ];
-  const isAllowedTextColor = (token: string) =>
+  // 登录品牌画布(已登记例外,与上面两条测试一致)才可用 colors.login.*。
+  const LOGIN_CANVAS_FILES = [/^app\/\(auth\)\/login\.tsx$/, /^src\/components\/LoginSkinControls\.tsx$/];
+  const isAllowedTextColor = (rel: string, token: string) =>
     NEUTRAL_TEXT_COLORS.includes(token) || SEMANTIC_TEXT_COLORS.includes(token)
-    || token.startsWith('login.') || /^syntax[A-Z]/.test(token);
-  // 已知存量(2026-10-30 盘点):只许减少。修掉或经设计裁决登记后,从这里删掉对应条目;
-  // 条目不再出现时测试会提醒删除。键为「文件 样式名或调用 token」,不绑行号。
-  const KNOWN_TEXT_COLOR_DEBT = new Set([
-    'src/components/MobilePrimitives.tsx mainOptionBadgeTextSelected cta', // 与 textPrimary 两模式同值
-    'src/plugins/PluginDetailView.tsx toolsToggleText inputCaret', // 展开/收起用光标蓝,待设计裁决
-    'src/plugins/PluginDetailView.ios.tsx foregroundStyle inputCaret', // 同上(iOS 原生,2 处)
-    'src/session/SharedTaskScreen.tsx dangerText sharedTaskConfirmBackground', // 借用确认钮底色,待设计裁决
+    || (token.startsWith('login.') && LOGIN_CANVAS_FILES.some((re) => re.test(rel)))
+    || /^syntax[A-Z]/.test(token);
+  // 已知存量(2026-10-30 盘点):只许减少。键为「文件 样式名或调用 token」,值为允许出现的次数;
+  // 次数增加会报错,修掉后实际次数低于登记值时测试会提醒收紧。
+  const KNOWN_TEXT_COLOR_DEBT = new Map<string, number>([
+    ['src/components/MobilePrimitives.tsx mainOptionBadgeTextSelected cta', 1], // 与 textPrimary 两模式同值
+    ['src/plugins/PluginDetailView.tsx toolsToggleText inputCaret', 1], // 展开/收起用光标蓝,待设计裁决
+    ['src/plugins/PluginDetailView.ios.tsx foregroundStyle inputCaret', 2], // 同上(iOS 原生)
+    ['src/remote-desktop/RemoteDesktopSecuritySettings.tsx inline inputCaret', 1], // 空闲超时可用态用光标蓝文字,待设计裁决
+    ['src/session/SharedTaskScreen.tsx dangerText sharedTaskConfirmBackground', 1], // 借用确认钮底色,待设计裁决
   ]);
-  const KNOWN_PLACEHOLDER_DEBT = new Set([
-    'src/session/ContextSheet.tsx textTertiary', // 占位字用了三级色,待有意可见 PR 改为 textPlaceholder
+  const KNOWN_PLACEHOLDER_DEBT = new Map<string, number>([
+    ['src/session/ContextSheet.tsx textTertiary', 1], // 占位字用了三级色,待有意可见 PR 改为 textPlaceholder
   ]);
   // 样式块算作文字样式:带字号/字重/行高/文字预设,或样式名表明它是文字(只覆盖颜色的选中态等)。
   const TEXT_STYLE_KEY = /Text|Label|Title|text$|label$|title$/;
+  const THEME_TOKEN = /\b(?:colors|c)\.([A-Za-z_][\w.]*)/g;
+  const tokensIn = (expr: string) => [...expr.matchAll(THEME_TOKEN)].map((m) => m[1].replace(/\.$/, ''));
+  /** `{` 之后的配对 `}` 之前的文本(不处理字符串里的括号,样式表达式里足够)。 */
+  const balancedFrom = (src: string, start: number) => {
+    let depth = 1;
+    for (let i = start; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}' && --depth === 0) return src.slice(start, i);
+    }
+    return src.slice(start);
+  };
+  /** 文字样式里出现的所有颜色 token:命名样式块、内联 style(对象、数组、条件分支)与 SwiftUI foregroundStyle。 */
+  const scanTextColors = (source: string): Array<{ where: string; token: string }> => {
+    const found: Array<{ where: string; token: string }> = [];
+    for (const block of source.matchAll(/(?:const\s+)?(\w+)(?::|\s*=)\s*\{([^{}]*)\}/g)) {
+      const [, key, body] = block;
+      if (!/fontSize|fontWeight|lineHeight|textStyles\./.test(body) && !TEXT_STYLE_KEY.test(key)) continue;
+      for (const c of body.matchAll(/\bcolor:\s*([^,}]+)/g)) for (const token of tokensIn(c[1])) found.push({ where: key, token });
+    }
+    for (const inline of source.matchAll(/\bstyle=\{/g)) {
+      const span = balancedFrom(source, inline.index! + inline[0].length);
+      for (const c of span.matchAll(/\bcolor:\s*([^,}]+)/g)) for (const token of tokensIn(c[1])) found.push({ where: 'inline', token });
+    }
+    // SwiftUI 的 foregroundStyle 也给形状、渐变上色;只统计 Text / Button 上的文字色。
+    for (const call of source.matchAll(/foregroundStyle\(([^)]*)\)/g)) {
+      const owner = [...source.slice(Math.max(0, call.index! - 1500), call.index!).matchAll(/<([A-Z]\w*)\b/g)].pop()?.[1];
+      if (owner !== 'Text' && owner !== 'Button') continue;
+      for (const token of tokensIn(call[1])) found.push({ where: 'foregroundStyle', token });
+    }
+    return found;
+  };
+  const scanPlaceholderColors = (source: string): string[] =>
+    [...source.matchAll(/placeholderTextColor=\{([^}]*)\}/g)].flatMap((m) => tokensIn(m[1]));
+  /** 计数并对照存量名单;返回违规与「可收紧」提示。 */
+  const reconcile = (found: Map<string, number>, debt: Map<string, number>, fix: string) => {
+    const violations: string[] = [];
+    for (const [id, count] of found) {
+      const allowed = debt.get(id) ?? 0;
+      if (count > allowed) violations.push(`${id} (x${count}${allowed ? `, registered x${allowed}` : ''}) -> ${fix}`);
+    }
+    const stale = [...debt].filter(([id, allowed]) => (found.get(id) ?? 0) < allowed).map(([id, allowed]) => `${id}: registered x${allowed}, found x${found.get(id) ?? 0}`);
+    return { violations, stale };
+  };
+
+  it('scans style arrays, conditional branches and bare theme paths for text colors', () => {
+    const tokens = (src: string) => scanTextColors(src).map((f) => f.token);
+    expect(tokens('<Text style={[styles.label, { color: colors.border }]} />')).toEqual(['border']);
+    expect(tokens('<Text style={{ color: active ? colors.textPrimary : colors.border }} />')).toEqual(['textPrimary', 'border']);
+    expect(tokens('<Text style={[a, cond && { color: theme.colors.statusDone }]} />')).toEqual(['statusDone']);
+    expect(tokens('const x = { fontSize: typeScale.body, color: c.inputCaret }')).toEqual(['inputCaret']);
+    expect(tokens('<Text modifiers={[foregroundStyle(ok ? colors.textSecondary : colors.cta)]} />')).toEqual(['textSecondary', 'cta']);
+    expect(tokens('<Circle modifiers={[foregroundStyle(colors.statusReady)]} />')).toEqual([]);
+    expect(scanPlaceholderColors('<TextInput placeholderTextColor={disabled ? colors.textTertiary : colors.textPlaceholder} />')).toEqual(['textTertiary', 'textPlaceholder']);
+    expect(scanPlaceholderColors('<TextInput placeholderTextColor={theme.colors.textTertiary} />')).toEqual(['textTertiary']);
+    expect(isAllowedTextColor('src/session/Other.tsx', 'login.controlText')).toBe(false);
+    expect(isAllowedTextColor('src/components/LoginSkinControls.tsx', 'login.controlText')).toBe(true);
+  });
 
   it('keeps text colors on the five neutral tiers or registered semantic text tokens (2026-10-30)', () => {
-    const violations: string[] = [];
-    const seen = new Set<string>();
-    const check = (rel: string, where: string, token: string) => {
-      if (isAllowedTextColor(token)) return;
-      const id = `${rel} ${where} ${token}`;
-      if (KNOWN_TEXT_COLOR_DEBT.has(id)) seen.add(id);
-      else violations.push(`${id} -> use one of ${NEUTRAL_TEXT_COLORS.join(' / ')} or a registered semantic text token`);
-    };
+    const found = new Map<string, number>();
     for (const rel of files) {
       const source = readFileSync(join(ROOT, rel), 'utf8');
-      for (const block of source.matchAll(/(?:const\s+)?(\w+)(?::|\s*=)\s*\{([^{}]*)\}/g)) {
-        const [, key, body] = block;
-        const color = body.match(/\bcolor:\s*(?:colors|c|theme\.colors)\.([\w.]+)/)?.[1];
-        if (!color) continue;
-        if (!/fontSize|fontWeight|lineHeight|textStyles\./.test(body) && !TEXT_STYLE_KEY.test(key)) continue;
-        check(rel, key, color);
-      }
-      for (const inline of source.matchAll(/style=\{\{([^{}]*)\}\}/g)) {
-        const color = inline[1].match(/\bcolor:\s*(?:colors|c)\.([\w.]+)/)?.[1];
-        if (color) check(rel, 'inline', color);
-      }
-      for (const call of source.matchAll(/foregroundStyle\((?:colors|c)\.([\w.]+)\)/g)) {
-        check(rel, 'foregroundStyle', call[1]);
+      for (const { where, token } of scanTextColors(source)) {
+        if (isAllowedTextColor(rel, token)) continue;
+        const id = `${rel} ${where} ${token}`;
+        found.set(id, (found.get(id) ?? 0) + 1);
       }
     }
+    const { violations, stale } = reconcile(found, KNOWN_TEXT_COLOR_DEBT, `use one of ${NEUTRAL_TEXT_COLORS.join(' / ')} or a registered semantic text token`);
     expect(violations).toEqual([]);
-    expect([...KNOWN_TEXT_COLOR_DEBT].filter((id) => !seen.has(id)), '已修复的存量请从 KNOWN_TEXT_COLOR_DEBT 删除').toEqual([]);
+    expect(stale, '已修复的存量请从 KNOWN_TEXT_COLOR_DEBT 删除或调低次数').toEqual([]);
   });
 
   it('uses textPlaceholder for input placeholders (DESIGN.md §4 Inputs, 2026-10-30)', () => {
-    const violations: string[] = [];
-    const seen = new Set<string>();
+    const found = new Map<string, number>();
     for (const rel of files) {
       if (!rel.endsWith('.tsx')) continue;
       const source = readFileSync(join(ROOT, rel), 'utf8');
-      for (const m of source.matchAll(/placeholderTextColor=\{(?:colors|c)\.([\w.]+)\}/g)) {
-        const token = m[1];
-        if (token === 'textPlaceholder' || token === 'login.controlPlaceholder') continue;
+      for (const token of scanPlaceholderColors(source)) {
+        if (token === 'textPlaceholder' || (token === 'login.controlPlaceholder' && LOGIN_CANVAS_FILES.some((re) => re.test(rel)))) continue;
         const id = `${rel} ${token}`;
-        if (KNOWN_PLACEHOLDER_DEBT.has(id)) seen.add(id);
-        else violations.push(`${id} -> placeholderTextColor must be colors.textPlaceholder`);
+        found.set(id, (found.get(id) ?? 0) + 1);
       }
     }
+    const { violations, stale } = reconcile(found, KNOWN_PLACEHOLDER_DEBT, 'placeholderTextColor must be colors.textPlaceholder');
     expect(violations).toEqual([]);
-    expect([...KNOWN_PLACEHOLDER_DEBT].filter((id) => !seen.has(id)), '已修复的存量请从 KNOWN_PLACEHOLDER_DEBT 删除').toEqual([]);
+    expect(stale, '已修复的存量请从 KNOWN_PLACEHOLDER_DEBT 删除或调低次数').toEqual([]);
   });
 
   it('keeps textStyles presets composed from the typeScale / lineHeight ladders', () => {

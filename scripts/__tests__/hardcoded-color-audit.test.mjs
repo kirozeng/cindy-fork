@@ -477,3 +477,26 @@ test('new off-scale radii block in Desktop renderer consumers; governed and dyna
   // Tests and fixtures are outside the blocking scope.
   assert.deepEqual(inspect(`${renderer}components/__tests__/x.test.tsx`, '<div className="rounded-md" />').filter(f => f.disposition === 'block'), []);
 });
+
+test('shorthand, !important and trailing-declaration radii are parsed value by value', () => {
+  const file = `${renderer}components/Example.tsx`;
+  const blocked = source => inspect(file, source).filter(f => f.rule === 'off-scale-radius' && f.disposition === 'block');
+  assert.equal(blocked('.x { border-radius: 6px !important; }').length, 1);
+  assert.equal(blocked('.x { border-radius: 8px 10px; }').length, 1);
+  assert.equal(blocked('.x { border-radius: 12px / 6px }').length, 1);
+  assert.equal(blocked("const s = { borderRadius: '6px' };").length, 1);
+  for (const ok of ['.x { border-radius: 8px 12px !important; }', '.x { border-radius: 0 8px; }', '.x { border-radius: var(--r) 6px; }'.replace('6px', 'var(--s)'),
+    '.x { border-radius: 50%; }', '.x { border-radius: calc(var(--r) - 2px); }']) {
+    assert.deepEqual(blocked(ok), [], ok);
+  }
+});
+
+test('an intrinsic-geometry declaration must be a comment that gives a reason', () => {
+  const file = `${renderer}components/Example.tsx`;
+  const dispositions = source => inspect(file, source).filter(f => f.rule === 'off-scale-radius').map(f => f.disposition);
+  assert.deepEqual(dispositions('// design: intrinsic-geometry — plugin icon mask\n<img className="rounded-[3px]" />'), ['report']);
+  assert.deepEqual(dispositions('/* design: intrinsic-geometry: swatch art */\n<img className="rounded-[3px]" />'), ['report']);
+  assert.deepEqual(dispositions('// design: intrinsic-geometry\n<img className="rounded-[3px]" />'), ['block']);
+  assert.deepEqual(dispositions('// design: intrinsic-geometry —\n<img className="rounded-[3px]" />'), ['block']);
+  assert.deepEqual(dispositions("const note = 'design: intrinsic-geometry — x';\n<img className=\"rounded-[3px]\" />"), ['block']);
+});
