@@ -82,7 +82,9 @@ const balancedFrom = (src: string, start: number) => {
 const enclosingTag = (src: string, index: number) =>
   [...src.slice(Math.max(0, index - 1500), index).matchAll(/<([A-Z][\w.]*)\b/g)].pop()?.[1];
 const isTextTag = (tag?: string) => !!tag && /(?:^|\.)(?:Text|AppText|TextInput|AppTextInput)$/.test(tag);
-const SWIFTUI_TEXT_CONTROLS = new Set(['Text', 'Button', 'TextField', 'SecureField', 'TextEditor', 'Label']);
+// SwiftUI 里明确不是文字的所有者(形状、图标、分隔、占位):它们的 foregroundStyle 不算文字色。
+// 其余所有者——包括没有 JSX 标签的可复用修饰器(如 nativeGlassButtonStyle.ios.ts)——都按文字色检查。
+const SWIFTUI_NON_TEXT = new Set(['Circle', 'Rectangle', 'RoundedRectangle', 'Capsule', 'Ellipse', 'UnevenRoundedRectangle', 'Image', 'Divider', 'Spacer', 'ProgressView', 'Gauge']);
 const TEXT_STYLE_PROPS = /fontSize|fontWeight|lineHeight|textStyles\./;
 
 /** 被 `<Text style={styles.x}>` / `style={[styles.a, styles.b]}` 这类写法实际用在文字组件上的样式名。 */
@@ -110,10 +112,10 @@ function scanTextColors(source: string): Array<{ where: string; token: string }>
     const span = balancedFrom(source, attr.index! + attr[0].length);
     for (const c of span.matchAll(/\bcolor:\s*([^,}]+)/g)) for (const token of tokensIn(c[1])) found.push({ where: 'inline', token });
   }
-  // SwiftUI 的 foregroundStyle 也给形状、渐变上色;只统计带文字的控件(Text / Button / TextField 等)。
+  // SwiftUI 的 foregroundStyle 也给形状、渐变、图标上色,这些所有者排除;文字控件与可复用修饰器都统计。
   for (const call of source.matchAll(/foregroundStyle\(([^)]*)\)/g)) {
     const owner = enclosingTag(source, call.index!);
-    if (!owner || !SWIFTUI_TEXT_CONTROLS.has(owner)) continue;
+    if (owner && SWIFTUI_NON_TEXT.has(owner)) continue;
     for (const token of tokensIn(call[1])) found.push({ where: 'foregroundStyle', token });
   }
   return found;
@@ -144,6 +146,8 @@ describe('text color discipline', () => {
     expect(tokens('<Text modifiers={[foregroundStyle(ok ? colors.textSecondary : colors.cta)]} />')).toEqual(['textSecondary', 'cta']);
     expect(tokens('<Circle modifiers={[foregroundStyle(colors.statusReady)]} />')).toEqual([]);
     expect(tokens('<TextField modifiers={[foregroundStyle(colors.border)]} />')).toEqual(['border']);
+    expect(tokens('<Image modifiers={[foregroundStyle(colors.border)]} />')).toEqual([]);
+    expect(tokens('export const glass = (colors) => [foregroundStyle(colors.border)];')).toEqual(['border']);
     expect(tokens('<NativeText textStyle={{ color: colors.border }} />')).toEqual(['border']);
     expect(scanTextColors('<NativeText textStyle={styles.row}>x</NativeText>\nconst styles = { row: { color: c.border } }').map((f) => f.token)).toEqual(['border']);
     // 只覆盖 color、名字也不像文字的命名样式:被 <Text> 引用就算,不被引用(如 View 背景)不算。

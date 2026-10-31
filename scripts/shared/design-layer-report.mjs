@@ -113,7 +113,7 @@ export function offScaleRadius(raw) {
   } else {
     // Literal CSS / style-object radius: every value in a shorthand (6px 10px, 8px / 12px)
     // must be on the inventory; trailing !important or a quote is not part of the value.
-    const css = /^border(?:-radius|Radius)\s*:\s*['"]?([^'"]*?)['"]?\s*$/.exec(raw);
+    const css = /^(?:setProperty\(\s*['"][\w-]+['"]\s*,|border[\w-]*?[Rr]adius\s*(?::|=))\s*([\s\S]*)$/.exec(raw);
     if (!css) return null;
     const values = css[1].replace(/!\s*important/i, '').split(/[\s/]+/).filter(Boolean);
     for (const value of values) {
@@ -255,14 +255,18 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
       suggestion: 'Use the matching semantic theme role on a production surface; preserve sanctioned content and legacy overrides. This report does not add blocking scope.',
     });
   }
-  const patterns = /\brounded(?:-(?:[trblse]|tl|tr|bl|br|ss|se|es|ee)(?=-))?(?:-(?:\[[^\]\n]+\]|[\w-]+))?|\bborder(?:-radius|Radius)\s*:\s*[^;,}]+|\b(?:[pm][xytrblse]?|gap(?:-[xy])?|space-[xy])-\[[^\]\n]+\]/g;
+  const patterns = /\brounded(?:-(?:[trblse]|tl|tr|bl|br|ss|se|es|ee)(?=-))?(?:-(?:\[[^\]\n]+\]|[\w-]+))?|\b(?:border(?:-(?:top|bottom)-(?:left|right)|-(?:start|end)-(?:start|end))?-radius|border(?:(?:Top|Bottom)(?:Left|Right)|(?:Start|End)(?:Start|End))?Radius)\s*(?::|=(?!=))\s*[^;,}]+|\bsetProperty\(\s*['\"]border(?:-(?:top|bottom)-(?:left|right)|-(?:start|end)-(?:start|end))?-radius['\"]\s*,\s*[^;)]+|\b(?:[pm][xytrblse]?|gap(?:-[xy])?|space-[xy])-\[[^\]\n]+\]/g;
   for (const match of source.matchAll(patterns)) {
-    const pos = locate(match.index);
-    if (!changed.has(pos.line)) continue;
+    const start = locate(match.index);
+    // A multi-line declaration counts as changed when ANY line it spans was added/edited.
+    const endLine = locate(Math.max(match.index, match.index + match[0].trimEnd().length - 1)).line;
+    const changedLine = [...changed].filter(line => line >= start.line && line <= endLine).sort((a, b) => a - b)[0];
+    if (changedLine === undefined) continue;
+    const pos = changedLine === start.line ? start : { line: changedLine, column: 1 };
     const tagStart = source.lastIndexOf('<', match.index);
     const tagEnd = source.indexOf('>', match.index);
     const tag = tagStart >= 0 && tagEnd >= 0 ? source.slice(tagStart, tagEnd + 1) : '';
-    const isRadius = /^(rounded|border)/.test(match[0]);
+    const isRadius = /^(rounded|border|setProperty)/.test(match[0]);
     let member, layer, evidence = false;
     if (/\/usage\/Usage(?:Heatmap|TokenBars)\.tsx$|\/UsageHeatmap\.tsx$/.test(file)) {
       member = /data-usage-mark="(usage-heatmap-day|usage-token-bar)"/.exec(tag)?.[1];
@@ -276,7 +280,7 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
     const judgement = isRadius ? classifyDesignLayer({ member, layer, radius, evidence })
       : classifySpacing(match[0], spacingVariables);
     const offScale = isRadius ? offScaleRadius(match[0].trim()) : null;
-    if (offScale !== null && declaresIntrinsicGeometry(rawSource, pos.line)) {
+    if (offScale !== null && declaresIntrinsicGeometry(rawSource, start.line)) {
       findings.push({ file, ...pos, rule: 'off-scale-radius', value: match[0], disposition: 'report',
         classification: 'declared-intrinsic-geometry',
         reason: `Resolves to ${offScale}px; declared intrinsic content geometry (DESIGN §5), so it is outside the radius inventory.`,
@@ -290,7 +294,7 @@ export function reportDesignLayers(file, source, changed, locate, spacingVariabl
     const inSpan = spans => spans.some(([a, b]) => match.index >= a && match.index < b);
     const styleContext = /^rounded/.test(raw)
       ? inSpan(classSpans) || inSpan(helperSpans) || insideClassListLiteral(source, match.index)
-      : /^borderRadius/.test(raw) ? !insideStringLiteral(source, match.index)
+      : /^(?:border[A-Z]|setProperty)/.test(raw) ? !insideStringLiteral(source, match.index)
         : /\.(?:css|scss|less|html)$/.test(file);
     if (offScale !== null && !styleContext) {
       findings.push({ file, ...pos, rule: 'off-scale-radius', value: match[0], disposition: 'report',

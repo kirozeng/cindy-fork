@@ -541,3 +541,22 @@ test('reviewDate must be a real calendar day', () => {
   assert.doesNotThrow(() => validateExemptions([{ ...entry, reviewDate: '2028-02-29' }]));
   assert.throws(() => validateExemptions([{ ...entry, reviewDate: '2027-02-29' }]), /Invalid reviewDate/);
 });
+
+test('corner, logical and assignment radius spellings block; a multiline declaration counts when any spanned line changed', () => {
+  const file = `${renderer}components/Example.tsx`;
+  const css = `${renderer}styles/x.css`;
+  const run = (source, at, changed) => inspectFile(at, source, changed ?? new Set(source.split('\n').map((_, i) => i + 1)), exemptions, undefined, TODAY)
+    .filter(f => f.rule === 'off-scale-radius').map(f => `${f.disposition}@${f.line}`);
+  assert.deepEqual(run('.x { border-top-left-radius: 6px; }', css), ['block@1']);
+  assert.deepEqual(run('.x { border-start-end-radius: 10px; }', css), ['block@1']);
+  assert.deepEqual(run("const s = { borderTopLeftRadius: '6px' };", file), ['block@1']);
+  assert.deepEqual(run("panel.style.borderRadius = '6px';", file), ['block@1']);
+  assert.deepEqual(run("el.style.setProperty('border-radius', '6px');", file), ['block@1']);
+  for (const ok of ["panel.style.borderRadius = '8px';", "el.style.setProperty('border-radius', '12px');", 'if (a.borderRadius == 6) {}']) {
+    assert.deepEqual(run(ok, file), [], ok);
+  }
+  assert.deepEqual(run('.x { border-top-left-radius: 6px }', file), ['report@1']);
+  const multi = '.x {\n  border-radius: 8px\n    10px;\n}';
+  assert.deepEqual(run(multi, css, new Set([3])), ['block@3']);
+  assert.deepEqual(run(multi, css, new Set([1, 4])), []);
+});
