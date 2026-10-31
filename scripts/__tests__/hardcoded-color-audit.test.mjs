@@ -560,3 +560,14 @@ test('corner, logical and assignment radius spellings block; a multiline declara
   assert.deepEqual(run(multi, css, new Set([3])), ['block@3']);
   assert.deepEqual(run(multi, css, new Set([1, 4])), []);
 });
+
+test('Tailwind arbitrary shorthand radii are checked item by item', () => {
+  const file = `${renderer}components/Example.tsx`;
+  const dispositions = value => inspect(file, `<div className="${value}" />`).filter(f => f.rule === 'off-scale-radius').map(f => f.disposition);
+  for (const value of ['rounded-[8px_10px]', 'rounded-[6px_12px]', 'rounded-[8px_8px/6px]', 'rounded-t-[12px_10px]']) {
+    assert.deepEqual(dispositions(value), ['block'], value);
+  }
+  for (const value of ['rounded-[8px_12px]', 'rounded-[0_8px]', 'rounded-[var(--r)_6px]'.replace('6px', 'var(--s)'), 'rounded-[50%]']) {
+    assert.deepEqual(dispositions(value), [], value);
+  }
+});

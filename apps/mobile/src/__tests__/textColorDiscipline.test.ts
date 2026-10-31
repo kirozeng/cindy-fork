@@ -61,7 +61,13 @@ const KNOWN_TEXT_COLOR_DEBT = new Map<string, number>([
   ['src/plugins/PluginDetailView.tsx toolsToggleText inputCaret', 1], // 展开/收起用光标蓝,待设计裁决
   ['src/plugins/PluginDetailView.ios.tsx foregroundStyle inputCaret', 2], // 同上(iOS 原生)
   ['src/remote-desktop/RemoteDesktopSecuritySettings.tsx inline inputCaret', 1], // 空闲超时可用态用光标蓝文字,待设计裁决
-  ['src/session/SharedTaskScreen.tsx dangerText sharedTaskConfirmBackground', 1], // 借用确认钮底色,待设计裁决
+  ['src/session/SharedTaskScreen.tsx dangerText sharedTaskConfirmBackground', 1],
+  // 2026-10-31 盘点:main 上刚合入的有色文字,规范未登记这些文字用途,待设计裁决或有意可见 PR。
+  ['src/session/SessionUsageSummary.tsx quotaWarn quotaBarWarn', 1], // 额度条专用色,规范写明不用于百分比文字
+  ['src/session/SessionUsageSummary.tsx quotaCrit quotaBarCrit', 1], // 同上
+  ['src/session/BotGroupChatScreen.tsx newReplyDivider threadUnreadDivider', 1], // 规范写明「新回复」分隔线文字保持 text-primary
+  ['src/session/InteractionPanel.tsx inline statusReady', 1], // 就绪阶段文字用品牌 teal,规范只登记了状态点
+  ['src/session/SessionImportSheet.tsx warn warningFg', 1], // 警告文字用金色前景,规范只登记了图标与皇冠 // 借用确认钮底色,待设计裁决
 ]);
 const KNOWN_PLACEHOLDER_DEBT = new Map<string, number>([
   ['src/session/ContextSheet.tsx textTertiary', 1], // 占位字用了三级色,待有意可见 PR 改为 textPlaceholder
@@ -99,18 +105,39 @@ function namedStylesUsedOnText(source: string): Set<string> {
 }
 
 /** 文字样式里出现的所有颜色 token:命名样式块、内联 style(对象、数组、条件分支)与 SwiftUI foregroundStyle。 */
+/** 简单局部别名:`const color = cond ? colors.a : colors.b`、`const phaseColor = colors.x`(最多两层)。 */
+function localColorAliases(source: string): Map<string, string[]> {
+  const aliases = new Map<string, string[]>();
+  for (let pass = 0; pass < 2; pass++) {
+    for (const m of source.matchAll(/\b(?:const|let)\s+(\w+)\s*(?::[^=\n]+)?=\s*([^;]{1,400})/g)) {
+      const direct = tokensIn(m[2]).filter((t) => t !== 'login');
+      const viaAlias = [...m[2].matchAll(/(?<![.\w])([A-Za-z_]\w*)\b(?!\s*\.)/g)].flatMap((id) => aliases.get(id[1]) ?? []);
+      const all = [...new Set([...direct, ...viaAlias])];
+      if (all.length) aliases.set(m[1], all);
+    }
+  }
+  return aliases;
+}
+/** `color: expr` 与对象简写 `{ color }` 的颜色表达式文本。 */
+const colorExprs = (body: string): string[] => [
+  ...[...body.matchAll(/\bcolor:\s*([^,}]+)/g)].map((m) => m[1]),
+  ...[...body.matchAll(/(?:^|[{,])\s*color\s*(?=[,}]|$)/g)].map(() => 'color'),
+];
+
 function scanTextColors(source: string): Array<{ where: string; token: string }> {
   const found: Array<{ where: string; token: string }> = [];
+  const aliases = localColorAliases(source);
+  const resolve = (expr: string) => [...new Set([...tokensIn(expr), ...[...expr.matchAll(/(?<![.\w])([A-Za-z_]\w*)\b(?!\s*\.)/g)].flatMap((id) => aliases.get(id[1]) ?? [])])];
   const onText = namedStylesUsedOnText(source);
   for (const block of source.matchAll(/(?:const\s+)?(\w+)(?::|\s*=)\s*\{([^{}]*)\}/g)) {
     const [, key, body] = block;
     // 带排版属性、样式名像文字、或实际被 <Text> 引用的样式块,都算文字样式。
     if (!TEXT_STYLE_PROPS.test(body) && !/Text$|Label$|Title$|^text|^label|^title/i.test(key) && !onText.has(key)) continue;
-    for (const c of body.matchAll(/\bcolor:\s*([^,}]+)/g)) for (const token of tokensIn(c[1])) found.push({ where: key, token });
+    for (const expr of colorExprs(body)) for (const token of resolve(expr)) found.push({ where: key, token });
   }
   for (const attr of source.matchAll(/\b(?:style|textStyle)=\{/g)) {
     const span = balancedFrom(source, attr.index! + attr[0].length);
-    for (const c of span.matchAll(/\bcolor:\s*([^,}]+)/g)) for (const token of tokensIn(c[1])) found.push({ where: 'inline', token });
+    for (const expr of colorExprs(span)) for (const token of resolve(expr)) found.push({ where: 'inline', token });
   }
   // SwiftUI 的 foregroundStyle 也给形状、渐变、图标上色,这些所有者排除;文字控件与可复用修饰器都统计。
   for (const call of source.matchAll(/foregroundStyle\(([^)]*)\)/g)) {
@@ -146,6 +173,11 @@ describe('text color discipline', () => {
     expect(tokens('<Text modifiers={[foregroundStyle(ok ? colors.textSecondary : colors.cta)]} />')).toEqual(['textSecondary', 'cta']);
     expect(tokens('<Circle modifiers={[foregroundStyle(colors.statusReady)]} />')).toEqual([]);
     expect(tokens('<TextField modifiers={[foregroundStyle(colors.border)]} />')).toEqual(['border']);
+    // 局部别名与对象简写:颜色先存进变量再写进样式,也要追到最终 token。
+    expect(tokens('const color = on ? colors.destructive : colors.border;\n<Text style={{ color }} />')).toEqual(['destructive', 'border']);
+    expect(tokens('const phaseColor = colors.border;\nconst x = { fontSize: typeScale.body, color: phaseColor }')).toEqual(['border']);
+    expect(tokens('const base = colors.border;\nconst tone = base;\n<Text style={[a, { color: tone }]} />')).toEqual(['border']);
+    expect(tokens('const other = 1;\n<Text style={{ color: other }} />')).toEqual([]);
     expect(tokens('<Image modifiers={[foregroundStyle(colors.border)]} />')).toEqual([]);
     expect(tokens('export const glass = (colors) => [foregroundStyle(colors.border)];')).toEqual(['border']);
     expect(tokens('<NativeText textStyle={{ color: colors.border }} />')).toEqual(['border']);

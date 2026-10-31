@@ -107,9 +107,18 @@ export function offScaleRadius(raw) {
   if (tailwind) {
     const value = tailwind[1];
     if (value === undefined) return null;
-    const arbitrary = /^\[(\d*\.?\d+)(px|rem)\]$/i.exec(value);
-    if (arbitrary) px = Number(arbitrary[1]) * (arbitrary[2].toLowerCase() === 'rem' ? 16 : 1);
-    else px = NAMED_RADIUS_PX[value];
+    const arbitrary = /^\[([^\]]+)\]$/.exec(value);
+    if (arbitrary) {
+      // Tailwind turns `_` into a space, so rounded-[8px_10px] / [6px_12px/4px] is a shorthand:
+      // check every item; var() / calc() / % items stay report-only.
+      for (const part of arbitrary[1].split(/[_/\s]+/).filter(Boolean)) {
+        const literal = /^(\d*\.?\d+)(px|rem)?$/i.exec(part);
+        if (!literal) continue;
+        const resolved = Number(literal[1]) * (literal[2]?.toLowerCase() === 'rem' ? 16 : 1);
+        if (!GOVERNED_RADIUS_PX.has(resolved)) return resolved;
+      }
+      return null;
+    } else px = NAMED_RADIUS_PX[value];
   } else {
     // Literal CSS / style-object radius: every value in a shorthand (6px 10px, 8px / 12px)
     // must be on the inventory; trailing !important or a quote is not part of the value.
