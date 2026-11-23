@@ -1,0 +1,94 @@
+[
+ [
+  "checkbox plain after Space",
+  {
+   "role": "input[checkbox]",
+   "checked": true,
+   "ariaChecked": null,
+   "indeterminate": false,
+   "disabled": false,
+   "focused": true
+  }
+ ],
+ [
+  "select-all (1 of 3)",
+  {
+   "role": "input[checkbox]",
+   "checked": false,
+   "ariaChecked": "mixed",
+   "indeterminate": true,
+   "disabled": false,
+   "focused": true
+  }
+ ],
+ [
+  "AX select-all",
+  {
+   "role": "checkbox",
+   "checked": "mixed"
+  }
+ ],
+ [
+  "select-all after Space",
+  {
+   "role": "input[checkbox]",
+   "checked": true,
+   "ariaChecked": null,
+   "indeterminate": false,
+   "disabled": false,
+   "focused": true
+  }
+ ],
+ [
+  "inline trigger box",
+  {
+   "x": 69.734375,
+   "y": 205,
+   "width": 118.6015625,
+   "height": 24
+  }
+ ],
+ [
+  "inline open highlighted",
+  "This computer"
+ ],
+ [
+  "inline after 2x ArrowDown",
+  "StudioRemote, online"
+ ],
+ [
+  "inline select",
+  "Enter opens, arrows skip disabled, Enter selects, focus returns, Space opens, Esc closes"
+ ],
+ [
+  "confirm initial focus",
+  "取消"
+ ],
+ [
+  "confirm focus after Esc",
+  {
+   "returned": false,
+   "active": "BODY  PlainSelect allItem 0Item 1Ite"
+  }
+ ],
+ [
+  "confirm Esc",
+  {
+   "log": ""
+  }
+ ],
+ [
+  "menu items",
+  [
+   "true",
+   "false"
+  ]
+ ],
+ [
+  "menu after Space on 2nd",
+  [
+   "true",
+   "true"
+  ]
+ ]
+]
